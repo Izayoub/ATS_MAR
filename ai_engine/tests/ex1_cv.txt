@@ -1,0 +1,29 @@
+Nom : Jean Dupont
+Email : jean.dupont@example.com
+Téléphone : +33 6 12 34 56 78
+Adresse : 12 rue des Fleurs, 75000 Paris, France
+
+Profil :
+Développeur logiciel passionné avec 5 ans d'expérience dans le développement d'applications web et mobiles.
+
+Expérience professionnelle :
+- 2020 - Présent : Développeur Full Stack chez TechSolutions
+  - Conception et développement d'applications web avec Django et React.
+  - Gestion des bases de données PostgreSQL.
+  - Collaboration avec les équipes produit et design.
+
+- 2017 - 2020 : Ingénieur logiciel chez WebDev Corp
+  - Développement d'applications mobiles Android.
+  - Maintenance et amélioration des applications existantes.
+
+Formation :
+- 2014 - 2017 : Licence Informatique, Université de Paris
+
+Compétences :
+- Langages : Python, JavaScript, Java
+- Frameworks : Django, React, Android
+- Bases de données : PostgreSQL, MySQL
+
+Langues :
+- Français : Langue maternelle
+- Anglais : Courant

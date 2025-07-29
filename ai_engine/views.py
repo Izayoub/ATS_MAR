@@ -4,10 +4,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import ProcessingJob
 from .serializers import ProcessingJobSerializer
-from .services.cv_parser import CVParserService
-from .services.ocr_service import OCRService
-from .services.matching_service import MatchingService
-from .services.llm_service import LLMService
+from ai_engine.services.cv_parser import CVParserService
+from ai_engine.services.ocr_service import OCRService
+from ai_engine.services.matching_service import MatchingService
+from ai_engine.services.llm_service import LLMService
 import logging
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
-from django.db.models import Q, Count
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import JobOffer, Candidate, Application, Interview
 from .serializers import (
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class JobOfferViewSet(viewsets.ModelViewSet):
+    queryset = JobOffer.objects.all()
     serializer_class = JobOfferSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['status', 'experience_level', 'location', 'company']
@@ -97,6 +98,7 @@ class JobOfferViewSet(viewsets.ModelViewSet):
 
 
 class CandidateViewSet(viewsets.ModelViewSet):
+    queryset = JobOffer.objects.all()
     serializer_class = CandidateSerializer
     parser_classes = [MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend]
@@ -227,6 +229,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
+    queryset = JobOffer.objects.all()
     serializer_class = ApplicationSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['status', 'job_offer', 'source']
@@ -329,6 +332,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
 
 class InterviewViewSet(viewsets.ModelViewSet):
+    queryset = JobOffer.objects.all()
     serializer_class = InterviewSerializer
 
     def get_queryset(self):

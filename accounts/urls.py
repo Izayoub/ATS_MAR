@@ -5,8 +5,8 @@ from rest_framework.authtoken.views import obtain_auth_token
 from .views import UserViewSet, CompanyViewSet, RegisterView
 
 router = DefaultRouter()
-router.register(r'users', UserViewSet)
-router.register(r'companies', CompanyViewSet)
+router.register(r'users', UserViewSet , basename='user')
+router.register(r'companies', CompanyViewSet,basename='company')
 
 urlpatterns = [
     path('', include(router.urls)),

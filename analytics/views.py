@@ -188,6 +188,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
 
 class RecruitmentMetricViewSet(viewsets.ModelViewSet):
+    queryset = RecruitmentMetric.objects.all()
     serializer_class = RecruitmentMetricSerializer
 
     def get_queryset(self):
@@ -195,6 +196,7 @@ class RecruitmentMetricViewSet(viewsets.ModelViewSet):
 
 
 class DashboardWidgetViewSet(viewsets.ModelViewSet):
+    queryset = DashboardWidget.objects.all()
     serializer_class = DashboardWidgetSerializer
 
     def get_queryset(self):

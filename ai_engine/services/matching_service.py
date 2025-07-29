@@ -220,7 +220,7 @@ class MatchingService(BaseAIService):
             return []
 
     def process(self, input_data):
-        """Interface générique pour le service de matching"""
+        """Interface générique pour le services de matching"""
         candidate_id = input_data.get('candidate_id')
         job_offer_id = input_data.get('job_offer_id')
 

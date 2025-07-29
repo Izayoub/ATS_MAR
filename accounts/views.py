@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import get_user_model
-from .models import Company
+from .models import Company, CustomUser
 from .serializers import UserSerializer, CompanySerializer
 
 User = get_user_model()
@@ -62,6 +62,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class CompanyViewSet(viewsets.ModelViewSet):
     serializer_class = CompanySerializer
+    queryset = Company.objects.all()
 
     def get_queryset(self):
         return Company.objects.filter(id=self.request.user.company.id)

@@ -4,8 +4,8 @@ from .views import AnalyticsViewSet, RecruitmentMetricViewSet, DashboardWidgetVi
 
 router = DefaultRouter()
 router.register(r'overview', AnalyticsViewSet, basename='analytics')
-router.register(r'metrics', RecruitmentMetricViewSet)
-router.register(r'widgets', DashboardWidgetViewSet)
+router.register(r'metrics', RecruitmentMetricViewSet,basename='metrics')
+router.register(r'widgets', DashboardWidgetViewSet, basename='widgets')
 
 urlpatterns = [
     path('', include(router.urls)),
