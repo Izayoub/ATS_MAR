@@ -1,3 +1,4 @@
+import type React from "react"
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
 import { AuthProvider } from "./contexts/AuthContext"
 import { ThemeProvider } from "./contexts/ThemeContext"
@@ -9,22 +10,23 @@ import HomePage from "./pages/HomePage"
 import LoginPage from "./pages/LoginPage"
 import RegisterPage from "./pages/RegisterPage"
 import DashboardPage from "./pages/DashboardPage"
+import AboutPage from "./pages/AboutPage"
+import ContactPage from "./pages/ContactPage"
 import JobsPage from "./pages/JobsPage"
-import CreateJobPage from "./pages/CreateJobPage"
-import ViewJobPage from "./pages/ViewJobPage"
-import EditJobPage from "./pages/EditJobPage"
 import CandidatesPage from "./pages/CandidatesPage"
-import ViewCandidatePage from "./pages/ViewCandidatePage"
 import AnalyticsPage from "./pages/AnalyticsPage"
 import SettingsPage from "./pages/SettingsPage"
 import PricingPage from "./pages/PricingPage"
-import AboutPage from "./pages/AboutPage"
-import ContactPage from "./pages/ContactPage"
 import NotFoundPage from "./pages/NotFoundPage"
+import CreateJobPage from "./pages/CreateJobPage"
+import ViewJobPage from "./pages/ViewJobPage"
+import EditJobPage from "./pages/EditJobPage"
+import ViewCandidatePage from "./pages/ViewCandidatePage"
+import AIAssistantPage from "./pages/AIAssistantPage"
 
 import "./App.css"
 
-function App() {
+const App: React.FC = () => {
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -32,15 +34,15 @@ function App() {
           <Router>
             <div className="App">
               <Routes>
-                {/* Public Routes */}
+                {/* Routes publiques */}
                 <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/pricing" element={<PricingPage />} />
 
-                {/* Protected Routes */}
+                {/* Routes protégées */}
                 <Route
                   path="/dashboard"
                   element={
@@ -106,6 +108,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/ai-assistant"
+                  element={
+                    <ProtectedRoute>
+                      <AIAssistantPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/settings"
                   element={
                     <ProtectedRoute>
@@ -114,7 +124,7 @@ function App() {
                   }
                 />
 
-                {/* 404 Route */}
+                {/* Route 404 */}
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </div>

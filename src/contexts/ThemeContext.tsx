@@ -23,8 +23,11 @@ export const useTheme = () => {
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme
-    return savedTheme || "system"
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem("theme") as Theme
+      return savedTheme || "system"
+    }
+    return "system"
   })
 
   const [actualTheme, setActualTheme] = useState<"light" | "dark">("light")
@@ -67,7 +70,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const handleSetTheme = (newTheme: Theme) => {
     setTheme(newTheme)
-    localStorage.setItem("theme", newTheme)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", newTheme)
+    }
   }
 
   return (
