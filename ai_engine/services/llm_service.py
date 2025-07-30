@@ -12,6 +12,64 @@ class LLMService(BaseAIService):
     def __init__(self):
         super().__init__()
         self.model_manager = model_manager
+        self.model = None
+        self.tokenizer = None
+        self.is_loaded = False
+
+    def load_model(self):
+        """
+        Implémentation requise de la méthode abstraite load_model
+        Charge le modèle TinyLLaMA
+        """
+        try:
+            if not self.is_loaded:
+                self.model, self.tokenizer = self.model_manager.load_tinyllama()
+                self.is_loaded = True
+                logger.info("Modèle TinyLLaMA chargé avec succès")
+                return True
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement du modèle: {e}")
+            self.is_loaded = False
+            return False
+        return self.is_loaded
+
+    def process(self, text, task_type="summary", **kwargs):
+        """
+        Implémentation requise de la méthode abstraite process
+        Traite le texte selon le type de tâche demandé
+        """
+        if not self.is_loaded:
+            if not self.load_model():
+                return {
+                    'success': False,
+                    'error': 'Modèle non disponible'
+                }
+
+        if task_type == "summary":
+            return self.generate_resume_summary(text, kwargs.get('max_length', 200))
+        elif task_type == "job_match":
+            return self.generate_job_match_analysis(
+                text,
+                kwargs.get('job_description', ''),
+                kwargs.get('similarity_score')
+            )
+        elif task_type == "interview_questions":
+            return self.generate_interview_questions(
+                text,
+                kwargs.get('job_description', ''),
+                kwargs.get('num_questions', 5)
+            )
+        elif task_type == "rejection_feedback":
+            return self.generate_rejection_feedback(
+                text,
+                kwargs.get('job_description', ''),
+                kwargs.get('reason')
+            )
+        else:
+            return {
+                'success': False,
+                'error': f'Type de tâche non supporté: {task_type}'
+            }
 
     def generate_resume_summary(self, resume_text, max_length=200):
         """
@@ -25,17 +83,23 @@ class LLMService(BaseAIService):
             dict: Résumé généré avec métadonnées
         """
         try:
-            model, tokenizer = self.model_manager.load_tinyllama()
+            if not self.is_loaded:
+                if not self.load_model():
+                    return {
+                        'success': False,
+                        'summary': '',
+                        'error': 'Modèle non disponible'
+                    }
 
             # Prompt pour générer un résumé
             prompt = f"""Résume ce CV en français de manière professionnelle et concise:
 
             {resume_text[:1000]}
-            
+
             Résumé professionnel:"""
 
             # Tokenisation
-            inputs = tokenizer(
+            inputs = self.tokenizer(
                 prompt,
                 return_tensors="pt",
                 truncation=True,
@@ -45,18 +109,18 @@ class LLMService(BaseAIService):
 
             # Génération
             with torch.no_grad():
-                outputs = model.generate(
+                outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=max_length,
                     temperature=0.7,
                     do_sample=True,
-                    pad_token_id=tokenizer.eos_token_id,
+                    pad_token_id=self.tokenizer.eos_token_id,
                     repetition_penalty=1.1,
                     no_repeat_ngram_size=3
                 )
 
             # Décodage et nettoyage
-            generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             summary = generated_text.replace(prompt, "").strip()
 
             return {
@@ -87,7 +151,13 @@ class LLMService(BaseAIService):
             dict: Analyse de correspondance
         """
         try:
-            model, tokenizer = self.model_manager.load_tinyllama()
+            if not self.is_loaded:
+                if not self.load_model():
+                    return {
+                        'success': False,
+                        'analysis': '',
+                        'error': 'Modèle non disponible'
+                    }
 
             # Construction du prompt
             score_text = f"Score de similarité: {similarity_score:.2f}" if similarity_score else ""
@@ -95,19 +165,19 @@ class LLMService(BaseAIService):
             prompt = f"""Analyse la correspondance entre ce CV et cette offre d'emploi:
 
             CV (extrait): {resume_text[:500]}...
-            
+
             Offre d'emploi: {job_description[:500]}...
-            
+
             {score_text}
-            
+
             Analyse en français:
             1. Points forts du candidat:
             2. Compétences manquantes:
             3. Recommandations:
-            
+
             Analyse:"""
 
-            inputs = tokenizer(
+            inputs = self.tokenizer(
                 prompt,
                 return_tensors="pt",
                 truncation=True,
@@ -115,16 +185,16 @@ class LLMService(BaseAIService):
             )
 
             with torch.no_grad():
-                outputs = model.generate(
+                outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=300,
                     temperature=0.7,
                     do_sample=True,
-                    pad_token_id=tokenizer.eos_token_id,
+                    pad_token_id=self.tokenizer.eos_token_id,
                     repetition_penalty=1.1
                 )
 
-            analysis = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            analysis = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             analysis = analysis.replace(prompt, "").strip()
 
             # Détermination du niveau de correspondance
@@ -159,17 +229,23 @@ class LLMService(BaseAIService):
             dict: Questions d'entretien générées
         """
         try:
-            model, tokenizer = self.model_manager.load_tinyllama()
+            if not self.is_loaded:
+                if not self.load_model():
+                    return {
+                        'success': False,
+                        'questions': [],
+                        'error': 'Modèle non disponible'
+                    }
 
             prompt = f"""Génère {num_questions} questions d'entretien pertinentes basées sur ce CV et ce poste:
 
             CV: {resume_text[:400]}...
-            
+
             Poste: {job_description[:400]}...
-            
+
             Questions d'entretien en français:"""
 
-            inputs = tokenizer(
+            inputs = self.tokenizer(
                 prompt,
                 return_tensors="pt",
                 truncation=True,
@@ -177,16 +253,16 @@ class LLMService(BaseAIService):
             )
 
             with torch.no_grad():
-                outputs = model.generate(
+                outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=250,
                     temperature=0.8,
                     do_sample=True,
-                    pad_token_id=tokenizer.eos_token_id,
+                    pad_token_id=self.tokenizer.eos_token_id,
                     repetition_penalty=1.2
                 )
 
-            questions_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            questions_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             questions_text = questions_text.replace(prompt, "").strip()
 
             # Extraction des questions individuelles
@@ -220,21 +296,27 @@ class LLMService(BaseAIService):
             dict: Feedback généré
         """
         try:
-            model, tokenizer = self.model_manager.load_tinyllama()
+            if not self.is_loaded:
+                if not self.load_model():
+                    return {
+                        'success': False,
+                        'feedback': '',
+                        'error': 'Modèle non disponible'
+                    }
 
             reason_text = f"Raison du rejet: {reason}" if reason else ""
 
             prompt = f"""Rédige un feedback constructif et bienveillant pour ce candidat:
 
             CV: {resume_text[:400]}...
-            
+
             Poste: {job_description[:300]}...
-            
+
             {reason_text}
-            
+
             Feedback constructif en français:"""
 
-            inputs = tokenizer(
+            inputs = self.tokenizer(
                 prompt,
                 return_tensors="pt",
                 truncation=True,
@@ -242,16 +324,16 @@ class LLMService(BaseAIService):
             )
 
             with torch.no_grad():
-                outputs = model.generate(
+                outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=200,
                     temperature=0.6,
                     do_sample=True,
-                    pad_token_id=tokenizer.eos_token_id,
+                    pad_token_id=self.tokenizer.eos_token_id,
                     repetition_penalty=1.1
                 )
 
-            feedback = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            feedback = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             feedback = feedback.replace(prompt, "").strip()
 
             return {

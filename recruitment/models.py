@@ -85,7 +85,7 @@ class Application(models.Model):
         ('received', 'Reçu'),
         ('screening', 'Pré-sélection'),
         ('interview', 'Entretien'),
-        ('test', 'Test technique'),
+        ('tests', 'Test technique'),
         ('final', 'Entretien final'),
         ('accepted', 'Accepté'),
         ('rejected', 'Refusé'),

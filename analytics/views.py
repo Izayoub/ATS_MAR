@@ -94,7 +94,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
             ('received', 'Candidatures reçues'),
             ('screening', 'Pré-sélection'),
             ('interview', 'Entretiens'),
-            ('test', 'Tests techniques'),
+            ('tests', 'Tests techniques'),
             ('final', 'Entretiens finaux'),
             ('accepted', 'Acceptés')
         ]

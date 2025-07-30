@@ -5,6 +5,8 @@ from .base import BaseAIService
 from recruitment.models import Candidate, JobOffer
 import logging
 
+
+
 logger = logging.getLogger(__name__)
 
 
