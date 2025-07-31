@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<h2>{{ company.name }}</h2>
+<p>{{ company.description }}</p>
+<p><a href="{{ company.website }}">{{ company.website }}</a></p>
+<p>{{ company.email }}</p>
+<p>{{ company.phone }}</p>
+<a href="{% url 'company_update' company.pk %}">Modifier</a>
+<a href="{% url 'company_delete' company.pk %}">Supprimer</a>
+<a href="{% url 'company_list' %}">Retour</a>
+</body>
+</html>

@@ -1,10 +1,14 @@
+from django.contrib.auth import get_user_model
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render, redirect
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
+
+from accounts.models import Company
+from .forms import JobOfferForm, CompanyForm
 from .models import JobOffer, Candidate, Application, Interview
 from .serializers import (
     JobOfferSerializer, CandidateSerializer,
@@ -95,6 +99,7 @@ class JobOfferViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 class CandidateViewSet(viewsets.ModelViewSet):
@@ -392,3 +397,78 @@ class InterviewViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def joboffer_list(request):
+    offers = JobOffer.objects.all()
+    return render(request, 'recruitment/joboffer_list.html', {'offers': offers})
+
+def joboffer_detail(request, pk):
+    offer = get_object_or_404(JobOffer, pk=pk)
+    return render(request, 'recruitment/joboffer_detail.html', {'offer': offer})
+
+def joboffer_create(request):
+    User = get_user_model()
+    default_user = User.objects.first()
+    if request.method == 'POST':
+        form = JobOfferForm(request.POST)
+        if form.is_valid():
+            job = form.save(commit=False)
+            job.created_by = request.user
+            job.save()
+            return redirect('joboffer_list')
+    else:
+        form = JobOfferForm()
+    return render(request, 'recruitment/joboffer_form.html', {'form': form})
+
+def joboffer_update(request, pk):
+    offer = get_object_or_404(JobOffer, pk=pk)
+    form = JobOfferForm(request.POST or None, instance=offer)
+    if form.is_valid():
+        form.save()
+        return redirect('joboffer_detail', pk=pk)
+    return render(request, 'recruitment/joboffer_form.html', {'form': form})
+
+def joboffer_delete(request, pk):
+    offer = get_object_or_404(JobOffer, pk=pk)
+    if request.method == 'POST':
+        offer.delete()
+        return redirect('joboffer_list')
+    return render(request, 'recruitment/joboffer_confirm_delete.html', {'offer': offer})
+
+def company_list(request):
+    companies = Company.objects.all()
+    return render(request, 'recruitment/Company/company_list.html', {'companies': companies})
+
+
+def company_detail(request, pk):
+    company = get_object_or_404(Company, pk=pk)
+    return render(request, 'recruitment/Company/company_detail.html', {'company': company})
+
+
+def company_create(request):
+    if request.method == 'POST':
+        form = CompanyForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            return redirect('company_list')
+    else:
+        form = CompanyForm()
+    return render(request, 'recruitment/Company/company_form.html', {'form': form})
+
+
+def company_update(request, pk):
+    company = get_object_or_404(Company, pk=pk)
+    form = CompanyForm(request.POST or None, request.FILES or None, instance=company)
+    if form.is_valid():
+        form.save()
+        return redirect('company_detail', pk=pk)
+    return render(request, 'recruitment/Company/company_form.html', {'form': form})
+
+
+def company_delete(request, pk):
+    company = get_object_or_404(Company, pk=pk)
+    if request.method == 'POST':
+        company.delete()
+        return redirect('company_list')
+    return render(request, 'recruitment/Company/company_confirm_delete.html', {'company': company})

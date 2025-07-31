@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<h2>Offres d'emploi</h2>
+<a href="{% url 'joboffer_create' %}">Créer une offre</a>
+<ul>
+  {% for offer in offers %}
+    <li>
+      <a href="{% url 'joboffer_detail' offer.pk %}">{{ offer.title }}</a>
+    </li>
+  {% endfor %}
+</ul>
+</body>
+</html>

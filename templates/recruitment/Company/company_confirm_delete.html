@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<h2>Supprimer l'entreprise : {{ company.name }} ?</h2>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit">Oui, supprimer</button>
+    <a href="{% url 'company_detail' company.pk %}">Annuler</a>
+</form>
+
+</body>
+</html>

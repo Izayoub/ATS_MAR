@@ -30,7 +30,7 @@ class JobOffer(models.Model):
     location = models.CharField(max_length=200)
     remote_allowed = models.BooleanField(default=False)
     contract_type = models.CharField(max_length=50, default='CDI')
-    company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE)
+    company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE,default='GIANT LINK')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -146,3 +146,4 @@ class Interview(models.Model):
 
     def __str__(self):
         return f"Entretien {self.application.candidate} - {self.scheduled_at}"
+

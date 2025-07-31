@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<h2>{{ offer.title }}</h2>
+<p>{{ offer.description }}</p>
+<p>Lieu : {{ offer.location }}</p>
+<p>Expérience : {{ offer.get_experience_level_display }}</p>
+<p>Salaire : {{ offer.salary_min }} - {{ offer.salary_max }}</p>
+
+<a href="{% url 'joboffer_update' offer.pk %}">Modifier</a> |
+<a href="{% url 'joboffer_delete' offer.pk %}">Supprimer</a> |
+<a href="{% url 'joboffer_list' %}">Retour</a>
+</body>
+</html>

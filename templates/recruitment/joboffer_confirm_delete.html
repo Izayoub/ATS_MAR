@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<h2>Confirmer la suppression</h2>
+<p>Voulez-vous vraiment supprimer l'offre "{{ offer.title }}" ?</p>
+<form method="post">
+  {% csrf_token %}
+  <button type="submit">Oui, supprimer</button>
+  <a href="{% url 'joboffer_detail' offer.pk %}">Annuler</a>
+</form>
+
+</body>
+</html>
