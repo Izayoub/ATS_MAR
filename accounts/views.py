@@ -1,68 +1,59 @@
-
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import get_user_model
-from .models import Company, CustomUser
-from .serializers import UserSerializer, CompanySerializer
+from .models import Company
+from .serializers import UserSerializer, CompanySerializer, UserRegistrationSerializer
 
 User = get_user_model()
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
 
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
+    def get(self, request):
+        return Response({
+            "description": "Registration endpoint",
+            "required_fields": {
+                "first_name": "string",
+                "last_name": "string",
+                "email": "string (will be used as username)",
+                "role": "string (admin/hr_manager/recruiter/hiring_manager)",
+                "company_name": "string",
+                "password": "string (min 8 chars)",
+                "confirm_password": "string",
+                "accept_terms": "boolean (must be true)"
+            }
+        })
+
     def post(self, request):
-        try:
-            username = request.data.get('username')
-            email = request.data.get('email')
-            password = request.data.get('password')
-            company_name = request.data.get('company_name')
-
-            # Créer la company
-            company = Company.objects.create(
-                name=company_name,
-                description=request.data.get('company_description', '')
-            )
-
-            # Créer l'utilisateur
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-                company=company,
-                role='admin'
-            )
-
-            # Générer token
-            from rest_framework.authtoken.models import Token
-            token, created = Token.objects.get_or_create(user=user)
-
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
             return Response({
-                'success': True,
-                'token': token.key,
-                'user': UserSerializer(user).data
-            })
-
-        except Exception as e:
-            return Response({
-                'success': False,
-                'error': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-
-class UserViewSet(viewsets.ModelViewSet):
-    serializer_class = UserSerializer
-
-    def get_queryset(self):
-        return User.objects.filter(company=self.request.user.company)
-
-
-class CompanyViewSet(viewsets.ModelViewSet):
-    serializer_class = CompanySerializer
-    queryset = Company.objects.all()
-
-    def get_queryset(self):
-        return Company.objects.filter(id=self.request.user.company.id)
+                "success": True,
+                "message": "Compte créé avec succès!",
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "role": user.get_role_display(),
+                    "company": user.company.name if user.company else None
+                }
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            "success": False,
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
