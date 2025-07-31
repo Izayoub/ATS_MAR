@@ -5,15 +5,14 @@ from .base import BaseAIService
 from recruitment.models import Candidate, JobOffer
 import logging
 
-
-
 logger = logging.getLogger(__name__)
 
 
 class MatchingService(BaseAIService):
     def __init__(self):
         super().__init__()
-        self.model_path = settings.AI_CONFIG.get('BGE_MODEL_PATH')
+        self.model = SentenceTransformer('BAAI/bge-m3')
+
 
     def load_model(self):
         try:
@@ -222,7 +221,7 @@ class MatchingService(BaseAIService):
             return []
 
     def process(self, input_data):
-        """Interface générique pour le services de matching"""
+        """Interface générique pour le service de matching"""
         candidate_id = input_data.get('candidate_id')
         job_offer_id = input_data.get('job_offer_id')
 
