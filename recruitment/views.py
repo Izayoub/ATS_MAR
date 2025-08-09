@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from pyexpat.errors import messages
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404, render, redirect
@@ -406,21 +409,36 @@ def joboffer_list(request):
 def joboffer_detail(request, pk):
     offer = get_object_or_404(JobOffer, pk=pk)
     return render(request, 'recruitment/joboffer_detail.html', {'offer': offer})
-
+@login_required  # Supprimez @permission_classes([IsAuthenticated])
 def joboffer_create(request):
-    User = get_user_model()
-    default_user = User.objects.first()
+    """Vue Django classique pour créer une offre d'emploi"""
+
+    # Vérification de sécurité supplémentaire
+    if not request.user.is_authenticated:
+        messages.error(request, "Vous devez être connecté pour créer une offre d'emploi.")
+        return redirect('login')
+
+    # Vérifier que l'utilisateur a une compagnie associée
+    if not hasattr(request.user, 'company') or not request.user.company:
+        messages.error(request, "Vous devez être associé à une compagnie pour créer une offre d'emploi.")
+        return redirect('company_create')  # ou une autre page appropriée
+
     if request.method == 'POST':
         form = JobOfferForm(request.POST)
         if form.is_valid():
             job = form.save(commit=False)
-            job.created_by = request.user
+            job.created_by = request.user  # Maintenant request.user est garanti d'être authentifié
+            job.company = request.user.company  # Assigner automatiquement la compagnie
             job.save()
+
+            messages.get(request, "Offre d'emploi créée avec succès !")
             return redirect('joboffer_list')
+        else:
+            messages.error(request, "Veuillez corriger les erreurs dans le formulaire.")
     else:
         form = JobOfferForm()
-    return render(request, 'recruitment/joboffer_form.html', {'form': form})
 
+    return render(request, 'recruitment/joboffer_form.html', {'form': form})
 def joboffer_update(request, pk):
     offer = get_object_or_404(JobOffer, pk=pk)
     form = JobOfferForm(request.POST or None, instance=offer)
