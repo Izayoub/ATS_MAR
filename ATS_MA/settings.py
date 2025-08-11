@@ -34,6 +34,47 @@ INSTALLED_APPS = [
     'corsheaders',
 ]
 
+AI_ENGINE_SETTINGS = {
+    # Service de matching
+    'MATCHING': {
+        'MODEL_NAME': 'BAAI/bge-m3',
+        'CACHE_TIMEOUT': 3600,  # 1 heure
+        'ENABLE_CACHE': True,
+        'MAX_BATCH_SIZE': 100,
+        'LOG_LEVEL': 'INFO',
+        'PRELOAD_MODEL': True,  # Charger le modèle au démarrage
+    },
+
+    # Performance
+    'PERFORMANCE': {
+        'MAX_CONCURRENT_REQUESTS': 10,
+        'REQUEST_TIMEOUT': 30,  # secondes
+        'ENABLE_METRICS': True,
+    },
+
+    # Sécurité
+    'SECURITY': {
+        'RATE_LIMIT_PER_HOUR': 1000,
+        'REQUIRE_AUTH': False,  # Pour API publique
+        'ALLOWED_DOMAINS': ['*'],  # Ou spécifiez vos domaines
+    }
+}
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ai-engine-cache',
+    },
+    'matching': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/2',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'matching_',
+        'TIMEOUT': AI_ENGINE_SETTINGS['MATCHING']['CACHE_TIMEOUT'],
+    }
+}
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # doit être tout en haut
     'django.middleware.security.SecurityMiddleware',
