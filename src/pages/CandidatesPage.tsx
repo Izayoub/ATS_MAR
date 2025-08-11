@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { useToast } from "../contexts/ToastContext"
 import Header from "../components/Layout/Header"
-import Sidebar from "../components/Layout/Sidebar"
+import Sidebar from "../components/Layout/Sidebar"                                                                                              
 import { Button } from "../components/ui/button"
 import { Card, CardContent } from "../components/ui/card"
 import {
@@ -268,27 +268,19 @@ const CandidatesPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <Header />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 ml-64 pt-16">
-            <div className="flex items-center justify-center h-96">
-              <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
-            </div>
-          </main>
-        </div>
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
+      
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
-          <div className="p-6">
+        
+        
+          <div className="p-6 y-6" >
             {/* Header */}
             <div className="flex justify-between items-center mb-8">
               <div>
@@ -528,7 +520,7 @@ const CandidatesPage: React.FC = () => {
               </Card>
             )}
           </div>
-        </main>
+        
       </div>
     </div>
   )

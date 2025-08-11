@@ -10,6 +10,7 @@ import Sidebar from "../components/Layout/Sidebar"
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { ArrowLeft, Save, Eye, Plus, X, MapPin, DollarSign, Clock, Briefcase, AlertCircle } from "lucide-react"
+import jobService from "../services/JobService"
 
 interface JobFormData {
   title: string
@@ -24,6 +25,9 @@ interface JobFormData {
   benefits: string[]
   deadline: string
   status: "draft" | "active"
+  experience_level: "junior" | "middle" | "senior"
+  remote_allowed: boolean
+  contract_type: string
 }
 
 const CreateJobPage: React.FC = () => {
@@ -47,6 +51,9 @@ const CreateJobPage: React.FC = () => {
     benefits: [],
     deadline: "",
     status: "draft",
+    experience_level: "junior",
+    remote_allowed: false,
+    contract_type: "CDI",
   })
 
   const [errors, setErrors] = useState<Partial<JobFormData>>({})
@@ -83,9 +90,23 @@ const CreateJobPage: React.FC = () => {
 
     setLoading(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
+      // Prepare payload for backend
+      const payload = {
+        title: updatedFormData.title,
+        description: updatedFormData.description,
+        requirements: updatedFormData.requirements.join("\n"),
+        benefits: updatedFormData.benefits.join("\n"),
+        status: updatedFormData.status,
+        experience_level: updatedFormData.experience_level,
+        salary_min: updatedFormData.salaryMin ? Number(updatedFormData.salaryMin) : null,
+        salary_max: updatedFormData.salaryMax ? Number(updatedFormData.salaryMax) : null,
+        location: updatedFormData.location,
+        remote_allowed: updatedFormData.remote_allowed,
+        contract_type: updatedFormData.type,
+        deadline: updatedFormData.deadline ? updatedFormData.deadline : null,
+        // department is not in backend model, so not sent
+      }
+      await jobService.createJob(payload)
       addToast(status === "active" ? "Offre publiée avec succès !" : "Brouillon sauvegardé !", "success")
       navigate("/jobs")
     } catch (error) {
@@ -146,10 +167,10 @@ const CreateJobPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
+      
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
+        
+        
           <div className="p-6">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
@@ -281,6 +302,35 @@ const CreateJobPage: React.FC = () => {
                           }`}
                         />
                         {errors.deadline && <p className="text-red-500 text-sm mt-1">{errors.deadline}</p>}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Niveau d'expérience
+                        </label>
+                        <select
+                          value={formData.experience_level}
+                          onChange={(e) => setFormData({ ...formData, experience_level: e.target.value as JobFormData["experience_level"] })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        >
+                          <option value="junior">Junior (0-2 ans)</option>
+                          <option value="middle">Confirmé (2-5 ans)</option>
+                          <option value="senior">Senior (5+ ans)</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center mt-6">
+                        <input
+                          type="checkbox"
+                          checked={formData.remote_allowed}
+                          onChange={(e) => setFormData({ ...formData, remote_allowed: e.target.checked })}
+                          className="mr-2"
+                          id="remote_allowed"
+                        />
+                        <label htmlFor="remote_allowed" className="text-sm text-gray-700 dark:text-gray-300">
+                          Télétravail autorisé
+                        </label>
                       </div>
                     </div>
                   </CardContent>
@@ -514,7 +564,7 @@ const CreateJobPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </main>
+        
       </div>
     </div>
   )

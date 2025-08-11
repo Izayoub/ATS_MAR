@@ -1,191 +1,135 @@
-"use client"
-
-import type React from "react"
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
-import { useToast } from "../contexts/ToastContext"
-import { Brain, Eye, EyeOff, Mail, Lock } from "lucide-react"
+import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useAuthNavigation } from '../hooks/useAuthNavigation'
+import { useToast } from '../contexts/ToastContext'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
 
 const LoginPage: React.FC = () => {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  })
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-
-  const { login } = useAuth()
+  const { login, isLoading, isAuthenticated } = useAuth()
+  const { redirectAfterLogin } = useAuthNavigation()
   const { addToast } = useToast()
-  const navigate = useNavigate()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
-  }
+  // Rediriger si déjà connecté
+  useEffect(() => {
+    if (isAuthenticated) {
+      redirectAfterLogin()
+    }
+  }, [isAuthenticated, redirectAfterLogin])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    
+    if (!email || !password) {
+      addToast('Veuillez remplir tous les champs', 'error')
+      return
+    }
 
     try {
-      const success = await login(formData.email, formData.password)
-      if (success) {
-        addToast("Connexion réussie !", "success")
-        navigate("/dashboard")
-      } else {
-        addToast("Email ou mot de passe incorrect", "error")
-      }
+      await login(email, password)
+      addToast('Connexion réussie !', 'success')
+      // La redirection sera gérée par l'useEffect ci-dessus
     } catch (error) {
-      addToast("Une erreur est survenue", "error")
-    } finally {
-      setIsLoading(false)
+      addToast('Email ou mot de passe incorrect', 'error')
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <Link to="/" className="inline-flex items-center space-x-2 mb-8">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-              <Brain className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <div className="flex justify-center mb-4">
+            <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">R</span>
             </div>
-            <span className="text-2xl font-bold text-gray-900 dark:text-white">TalentAI Maroc</span>
-          </Link>
-
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Bon retour !</h2>
-          <p className="text-gray-600 dark:text-gray-400">Connectez-vous à votre compte pour continuer</p>
-        </div>
-
-        {/* Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email */}
+          </div>
+          <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
+            Connexion
+          </CardTitle>
+          <p className="text-center text-gray-600 dark:text-gray-400">
+            Accédez à votre espace de recrutement
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Adresse email
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
-                  id="email"
-                  name="email"
                   type="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   placeholder="votre@email.com"
+                  disabled={isLoading}
                 />
               </div>
             </div>
 
-            {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Mot de passe
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="••••••••"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="Votre mot de passe"
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={isLoading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Remember me & Forgot password */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                  Se souvenir de moi
-                </label>
-              </div>
-              <Link to="/forgot-password" className="text-sm text-purple-600 hover:text-purple-500">
-                Mot de passe oublié ?
-              </Link>
-            </div>
-
-            {/* Submit Button */}
-            <button
+            <Button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
             >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              ) : (
-                "Se connecter"
-              )}
-            </button>
+              {isLoading ? 'Connexion...' : 'Se connecter'}
+            </Button>
           </form>
 
-          {/* Divider */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">Ou</span>
-              </div>
-            </div>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Pas encore de compte ?{' '}
+              <Link 
+                to="/register" 
+                className="text-purple-600 hover:text-purple-700 font-medium"
+              >
+                S'inscrire
+              </Link>
+            </p>
           </div>
 
-          {/* Social Login */}
-          <div className="mt-6 space-y-3">
-            <button className="w-full flex justify-center items-center px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-              <img src="/placeholder.svg?height=20&width=20&text=G" alt="Google" className="w-5 h-5 mr-2" />
-              Continuer avec Google
-            </button>
-            <button className="w-full flex justify-center items-center px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-              <img src="/placeholder.svg?height=20&width=20&text=L" alt="LinkedIn" className="w-5 h-5 mr-2" />
-              Continuer avec LinkedIn
-            </button>
-          </div>
-        </div>
-
-        {/* Sign up link */}
-        <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400">
-            Pas encore de compte ?{" "}
-            <Link to="/register" className="font-medium text-purple-600 hover:text-purple-500">
-              Créer un compte
+          <div className="mt-4 text-center">
+            <Link 
+              to="/" 
+              className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              ← Retour à l'accueil
             </Link>
-          </p>
-        </div>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

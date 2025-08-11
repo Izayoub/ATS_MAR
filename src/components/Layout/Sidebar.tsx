@@ -108,11 +108,11 @@ const Sidebar: React.FC = () => {
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">{user?.name?.charAt(0).toUpperCase() || "U"}</span>
+                <span className="text-white text-sm font-medium">{user?.username?.charAt(0).toUpperCase() || "U"}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {user?.name || "Utilisateur"}
+                  {user?.username || "Utilisateur"}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email || "user@example.com"}</p>
               </div>

@@ -5,8 +5,6 @@ import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTheme } from "../contexts/ThemeContext"
 import { useToast } from "../contexts/ToastContext"
-import Header from "../components/Layout/Header"
-import Sidebar from "../components/Layout/Sidebar"
 import { Button } from "../components/ui/button"
 import { Card } from "../components/ui/card"
 import {
@@ -50,7 +48,7 @@ interface QuickAction {
 
 const AIAssistantPage: React.FC = () => {
   const { actualTheme } = useTheme()
-  const { showToast } = useToast()
+  const { addToast } = useToast()
   const navigate = useNavigate()
 
   const [messages, setMessages] = useState<Message[]>([
@@ -204,7 +202,7 @@ const AIAssistantPage: React.FC = () => {
 
   const copyMessage = (content: string) => {
     navigator.clipboard.writeText(content)
-    showToast("Message copié dans le presse-papiers", "success")
+    addToast("Message copié dans le presse-papiers", "success")
   }
 
   const exportConversation = () => {
@@ -222,7 +220,7 @@ const AIAssistantPage: React.FC = () => {
     a.download = `conversation-ai-${new Date().toISOString().split("T")[0]}.txt`
     a.click()
     URL.revokeObjectURL(url)
-    showToast("Conversation exportée avec succès", "success")
+    addToast("Conversation exportée avec succès", "success")
   }
 
   const clearConversation = () => {
@@ -234,17 +232,17 @@ const AIAssistantPage: React.FC = () => {
         timestamp: new Date(),
       },
     ])
-    showToast("Conversation effacée", "success")
+    addToast("Conversation effacée", "success")
   }
 
   return (
     <div
       className={`min-h-screen transition-colors duration-200 ${actualTheme === "dark" ? "dark bg-gray-900" : "bg-gray-50"}`}
     >
-      <Header />
+      
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
+        
+        
           <div className="p-6">
             <div className="max-w-7xl mx-auto">
               {/* En-tête de la page */}
@@ -565,7 +563,7 @@ const AIAssistantPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </main>
+        
       </div>
     </div>
   )

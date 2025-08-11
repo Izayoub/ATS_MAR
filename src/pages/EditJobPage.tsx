@@ -5,25 +5,25 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import { useToast } from "../contexts/ToastContext"
-import Header from "../components/Layout/Header"
-import Sidebar from "../components/Layout/Sidebar"
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { ArrowLeft, Save, Eye, Plus, X, MapPin, DollarSign, Clock, Briefcase, AlertCircle } from "lucide-react"
+import { ArrowLeft, Save, Eye, Plus, X, MapPin, DollarSign, Clock, Briefcase, AlertCircle, Loader } from "lucide-react"
+import jobService from "../services/JobService"
+import type { JobOffer, JobOfferCreate } from "../types/api"
 
 interface JobFormData {
   title: string
-  department: string
-  location: string
-  type: "CDI" | "CDD" | "Stage" | "Freelance"
-  salaryMin: string
-  salaryMax: string
-  currency: string
   description: string
   requirements: string[]
   benefits: string[]
-  deadline: string
   status: "draft" | "active" | "paused" | "closed"
+  experience_level: "junior" | "middle" | "senior"
+  salary_min: string
+  salary_max: string
+  location: string
+  remote_allowed: boolean
+  contract_type: string
+  deadline: string
 }
 
 const EditJobPage: React.FC = () => {
@@ -31,77 +31,97 @@ const EditJobPage: React.FC = () => {
   const { user } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!!id) // Loading seulement si on édite
   const [saving, setSaving] = useState(false)
   const [newRequirement, setNewRequirement] = useState("")
   const [newBenefit, setNewBenefit] = useState("")
 
   const [formData, setFormData] = useState<JobFormData>({
     title: "",
-    department: "",
-    location: "",
-    type: "CDI",
-    salaryMin: "",
-    salaryMax: "",
-    currency: "MAD",
     description: "",
     requirements: [],
     benefits: [],
-    deadline: "",
     status: "draft",
+    experience_level: "middle",
+    salary_min: "",
+    salary_max: "",
+    location: "",
+    remote_allowed: false,
+    contract_type: "CDI",
+    deadline: "",
   })
 
   const [errors, setErrors] = useState<Partial<JobFormData>>({})
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   useEffect(() => {
-    fetchJob()
+    if (id) {
+      fetchJob()
+    }
   }, [id])
 
+  useEffect(() => {
+    // Marquer les changements non sauvegardés
+    setHasUnsavedChanges(true)
+  }, [formData])
+
   const fetchJob = async () => {
+    if (!id) return
+    
     setLoading(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log("Chargement de l'offre:", id)
+      const jobData: JobOffer = await jobService.getJob(Number(id))
+      console.log("Données reçues:", jobData)
+      
+      // Conversion des données API vers le format du formulaire
+      const requirementsList = Array.isArray(jobData.requirements) 
+        ? jobData.requirements
+        : typeof jobData.requirements === 'string' 
+          ? jobData.requirements.split('\n').filter(req => req.trim())
+          : []
 
-      // Mock job data
-      const mockJob = {
-        id: id || "1",
-        title: "Développeur Full Stack React/Node.js",
-        department: "Technique",
-        location: "Casablanca",
-        type: "CDI" as const,
-        salary: { min: 15000, max: 25000, currency: "MAD" },
-        status: "active" as const,
-        description: `Nous recherchons un développeur full stack expérimenté pour rejoindre notre équipe technique dynamique. Vous travaillerez sur des projets innovants utilisant les dernières technologies web.
+      const benefitsList = Array.isArray(jobData.benefits)
+        ? jobData.benefits
+        : typeof jobData.benefits === 'string'
+          ? jobData.benefits.split('\n').filter(benefit => benefit.trim())
+          : []
 
-Missions principales :
-• Développement d'applications web avec React.js et Node.js
-• Conception et implémentation d'APIs REST
-• Collaboration avec l'équipe UX/UI pour l'intégration des maquettes
-• Participation aux code reviews et à l'amélioration continue
-• Maintenance et optimisation des applications existantes`,
-        requirements: ["React.js", "Node.js", "MongoDB", "TypeScript", "3+ ans d'expérience"],
-        benefits: ["Télétravail hybride", "Assurance santé", "Formation continue"],
-        deadline: "2024-02-15",
+      // Formatage de la date pour l'input date
+      let deadlineFormatted = ""
+      if (jobData.deadline) {
+        try {
+          const date = new Date(jobData.deadline)
+          deadlineFormatted = date.toISOString().split('T')[0]
+        } catch (e) {
+          console.warn("Erreur de formatage de date:", jobData.deadline)
+        }
       }
 
       setFormData({
-        title: mockJob.title,
-        department: mockJob.department,
-        location: mockJob.location,
-        type: mockJob.type,
-        salaryMin: mockJob.salary.min.toString(),
-        salaryMax: mockJob.salary.max.toString(),
-        currency: mockJob.salary.currency,
-        description: mockJob.description,
-        requirements: mockJob.requirements,
-        benefits: mockJob.benefits,
-        deadline: mockJob.deadline,
-        status: mockJob.status,
+        title: jobData.title || "",
+        description: jobData.description || "",
+        requirements: requirementsList,
+        benefits: benefitsList,
+        status: jobData.status || "draft",
+        experience_level: jobData.experience_level || "middle",
+        salary_min: jobData.salary_min?.toString() || "",
+        salary_max: jobData.salary_max?.toString() || "",
+        location: jobData.location || "",
+        remote_allowed: jobData.remote_allowed || false,
+        contract_type: jobData.contract_type || "CDI",
+        deadline: deadlineFormatted,
       })
-    } catch (error) {
-      addToast("Erreur lors du chargement de l'offre", "error")
-      navigate("/jobs")
+
+      setHasUnsavedChanges(false) // Pas de changements après chargement
+      addToast("Offre chargée avec succès", "success")
+    } catch (error: any) {
+      console.error("Erreur lors du chargement:", error)
+      addToast(error.message || "Erreur lors du chargement de l'offre", "error")
+      // Redirection seulement si l'offre n'existe pas
+      if (error.message?.includes('404') || error.message?.includes('introuvable')) {
+        navigate("/jobs")
+      }
     } finally {
       setLoading(false)
     }
@@ -110,17 +130,57 @@ Missions principales :
   const validateForm = (): boolean => {
     const newErrors: Partial<JobFormData> = {}
 
-    if (!formData.title.trim()) newErrors.title = "Le titre est requis"
-    if (!formData.department.trim()) newErrors.department = "Le département est requis"
-    if (!formData.location.trim()) newErrors.location = "La localisation est requise"
-    if (!formData.description.trim()) newErrors.description = "La description est requise"
-    if (!formData.deadline) newErrors.deadline = "La date limite est requise"
-    if (!formData.salaryMin) newErrors.salaryMin = "Le salaire minimum est requis"
-    if (!formData.salaryMax) newErrors.salaryMax = "Le salaire maximum est requis"
+    // Validations obligatoires
+    if (!formData.title.trim()) {
+      newErrors.title = "Le titre est requis"
+    }
+    
+    if (!formData.location.trim()) {
+      newErrors.location = "La localisation est requise"
+    }
+    
+    if (!formData.description.trim()) {
+      newErrors.description = "La description est requise"
+    }
 
-    if (formData.salaryMin && formData.salaryMax) {
-      if (Number.parseInt(formData.salaryMin) >= Number.parseInt(formData.salaryMax)) {
-        newErrors.salaryMax = "Le salaire maximum doit être supérieur au minimum"
+    // Validations pour publication
+    if (formData.status === "active") {
+      if (!formData.deadline) {
+        newErrors.deadline = "La date limite est requise pour publier"
+      }
+      
+      if (!formData.salary_min) {
+        newErrors.salary_min = "Le salaire minimum est requis pour publier"
+      }
+      
+      if (!formData.salary_max) {
+        newErrors.salary_max = "Le salaire maximum est requis pour publier"
+      }
+
+      // Validation de cohérence des salaires
+      if (formData.salary_min && formData.salary_max) {
+        const minSalary = Number.parseFloat(formData.salary_min)
+        const maxSalary = Number.parseFloat(formData.salary_max)
+        
+        if (isNaN(minSalary) || isNaN(maxSalary)) {
+          if (isNaN(minSalary)) newErrors.salary_min = "Salaire minimum invalide"
+          if (isNaN(maxSalary)) newErrors.salary_max = "Salaire maximum invalide"
+        } else if (minSalary >= maxSalary) {
+          newErrors.salary_max = "Le salaire maximum doit être supérieur au minimum"
+        } else if (minSalary < 0) {
+          newErrors.salary_min = "Le salaire ne peut pas être négatif"
+        }
+      }
+
+      // Validation de la date limite
+      if (formData.deadline) {
+        const deadlineDate = new Date(formData.deadline)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        
+        if (deadlineDate < today) {
+          newErrors.deadline = "La date limite ne peut pas être dans le passé"
+        }
       }
     }
 
@@ -128,33 +188,109 @@ Missions principales :
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (status?: "draft" | "active") => {
-    const updatedFormData = status ? { ...formData, status } : formData
+  const handleSubmit = async (targetStatus?: "draft" | "active") => {
+    const statusToSave = targetStatus || formData.status
 
-    if ((status === "active" || formData.status === "active") && !validateForm()) {
-      addToast("Veuillez corriger les erreurs avant de publier", "error")
+    // Mise à jour du statut si spécifié
+    const dataToValidate = targetStatus 
+      ? { ...formData, status: targetStatus }
+      : formData
+
+    // Validation selon le statut cible
+    const tempFormData = formData
+    if (targetStatus) {
+      setFormData({ ...formData, status: targetStatus })
+    }
+
+    if (!validateForm()) {
+      if (targetStatus) {
+        setFormData(tempFormData) // Restaurer l'état précédent
+      }
+      addToast("Veuillez corriger les erreurs avant de continuer", "error")
       return
     }
 
     setSaving(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Préparation des données pour l'API
+      const apiData: JobOfferCreate = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        requirements: formData.requirements.join('\n'),
+        benefits: formData.benefits.join('\n'),
+        status: statusToSave,
+        experience_level: formData.experience_level,
+        salary_min: formData.salary_min ? Number.parseFloat(formData.salary_min) : null,
+        salary_max: formData.salary_max ? Number.parseFloat(formData.salary_max) : null,
+        location: formData.location.trim(),
+        remote_allowed: formData.remote_allowed,
+        contract_type: formData.contract_type,
+        deadline: formData.deadline ? new Date(formData.deadline + 'T23:59:59Z').toISOString() : null,
+      }
 
-      addToast("Offre mise à jour avec succès !", "success")
-      navigate(`/jobs/${id}`)
-    } catch (error) {
-      addToast("Erreur lors de la mise à jour", "error")
+      console.log("Données à envoyer:", apiData)
+
+      let savedJob: JobOffer
+
+      if (id) {
+        // Mode édition
+        savedJob = await jobService.updateJob(Number(id), apiData)
+        addToast("Offre mise à jour avec succès !", "success")
+        console.log("Offre mise à jour:", savedJob)
+      } else {
+        // Mode création
+        savedJob = await jobService.createJob(apiData)
+        addToast("Offre créée avec succès !", "success")
+        console.log("Offre créée:", savedJob)
+      }
+
+      // Mise à jour du statut dans le state
+      if (targetStatus) {
+        setFormData(prev => ({ ...prev, status: targetStatus }))
+      }
+      
+      setHasUnsavedChanges(false)
+
+      // Redirection après succès
+      setTimeout(() => {
+        navigate(`/jobs/${savedJob.id}`)
+      }, 1000)
+
+    } catch (error: any) {
+      console.error("Erreur lors de la sauvegarde:", error)
+      
+      // Restaurer l'état précédent en cas d'erreur
+      if (targetStatus) {
+        setFormData(tempFormData)
+      }
+      
+      let errorMessage = "Erreur lors de la sauvegarde"
+      
+      if (error.message) {
+        errorMessage = error.message
+      } else if (error.response?.data) {
+        const errorData = error.response.data
+        if (typeof errorData === 'string') {
+          errorMessage = errorData
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        }
+      }
+      
+      addToast(errorMessage, "error")
     } finally {
       setSaving(false)
     }
   }
 
   const addRequirement = () => {
-    if (newRequirement.trim() && !formData.requirements.includes(newRequirement.trim())) {
+    const trimmed = newRequirement.trim()
+    if (trimmed && !formData.requirements.includes(trimmed)) {
       setFormData({
         ...formData,
-        requirements: [...formData.requirements, newRequirement.trim()],
+        requirements: [...formData.requirements, trimmed],
       })
       setNewRequirement("")
     }
@@ -168,10 +304,11 @@ Missions principales :
   }
 
   const addBenefit = () => {
-    if (newBenefit.trim() && !formData.benefits.includes(newBenefit.trim())) {
+    const trimmed = newBenefit.trim()
+    if (trimmed && !formData.benefits.includes(trimmed)) {
       setFormData({
         ...formData,
-        benefits: [...formData.benefits, newBenefit.trim()],
+        benefits: [...formData.benefits, trimmed],
       })
       setNewBenefit("")
     }
@@ -184,427 +321,611 @@ Missions principales :
     })
   }
 
-  const departments = ["Technique", "Marketing", "Ventes", "RH", "Finance", "Design", "Data", "Support", "Direction"]
+  const updateFormField = <K extends keyof JobFormData>(
+    field: K,
+    value: JobFormData[K]
+  ) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    
+    // Effacer l'erreur pour ce champ
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[field]
+        return newErrors
+      })
+    }
+  }
 
   const locations = [
-    "Casablanca",
-    "Rabat",
-    "Marrakech",
-    "Fès",
-    "Tanger",
-    "Agadir",
-    "Meknès",
-    "Oujda",
-    "Télétravail",
-    "Hybride",
+    "Casablanca", "Rabat", "Marrakech", "Fès", "Tanger", "Agadir",
+    "Meknès", "Oujda", "Télétravail", "Hybride"
+  ]
+
+  const experienceLevels = [
+    { value: "junior", label: "Junior (0-2 ans)" },
+    { value: "middle", label: "Confirmé (2-5 ans)" },
+    { value: "senior", label: "Senior (5+ ans)" },
+  ]
+
+  const contractTypes = [
+    { value: "CDI", label: "CDI" },
+    { value: "CDD", label: "CDD" },
+    { value: "Stage", label: "Stage" },
+    { value: "Freelance", label: "Freelance" },
+  ]
+
+  const statusOptions = [
+    { value: "draft", label: "Brouillon", color: "gray" },
+    { value: "active", label: "Active", color: "green" },
+    { value: "paused", label: "En pause", color: "yellow" },
+    { value: "closed", label: "Fermée", color: "red" },
   ]
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <Header />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 ml-64 pt-16">
-            <div className="flex items-center justify-center h-96">
-              <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
-            </div>
-          </main>
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className="text-gray-600">Chargement de l'offre...</p>
         </div>
       </div>
     )
   }
 
+  const isEditMode = !!id
+  const canPublish = formData.title && formData.description && formData.location
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
-          <div className="p-6">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center space-x-4">
-                <Button variant="outline" onClick={() => navigate(`/jobs/${id}`)} className="flex items-center">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Retour
-                </Button>
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Modifier l'offre</h1>
-                  <p className="text-gray-600 dark:text-gray-400">Mettez à jour les informations de l'offre</p>
-                </div>
-              </div>
-              <div className="flex space-x-3">
-                <Button variant="outline" onClick={() => handleSubmit("draft")} disabled={saving}>
-                  <Save className="w-4 h-4 mr-2" />
-                  Sauvegarder
-                </Button>
-                <Button
-                  onClick={() => handleSubmit("active")}
-                  disabled={saving}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  {formData.status === "active" ? "Mettre à jour" : "Publier"}
-                </Button>
-              </div>
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center space-x-4">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(id ? `/jobs/${id}` : "/jobs")} 
+              className="flex items-center"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Retour
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                {isEditMode ? "Modifier l'offre" : "Créer une offre"}
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                {isEditMode ? "Mettez à jour les informations de l'offre" : "Créez une nouvelle offre d'emploi"}
+              </p>
+              {hasUnsavedChanges && (
+                <p className="text-orange-500 text-sm mt-1">
+                  ⚠️ Modifications non sauvegardées
+                </p>
+              )}
             </div>
+          </div>
+          
+          <div className="flex space-x-3">
+            <Button 
+              variant="outline" 
+              onClick={() => handleSubmit("draft")} 
+              disabled={saving}
+              className="min-w-[140px]"
+            >
+              {saving ? (
+                <><Loader className="w-4 h-4 mr-2 animate-spin" />Sauvegarde...</>
+              ) : (
+                <><Save className="w-4 h-4 mr-2" />Sauvegarder</>
+              )}
+            </Button>
+            
+            <Button
+              onClick={() => handleSubmit("active")}
+              disabled={saving || !canPublish}
+              className="bg-green-600 hover:bg-green-700 min-w-[140px]"
+              title={!canPublish ? "Veuillez remplir les champs obligatoires" : ""}
+            >
+              {saving ? (
+                <><Loader className="w-4 h-4 mr-2 animate-spin" />Publication...</>
+              ) : (
+                <><Eye className="w-4 h-4 mr-2" />{formData.status === "active" ? "Mettre à jour" : "Publier"}</>
+              )}
+            </Button>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main Form */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Basic Information */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-gray-900 dark:text-white">
-                      <Briefcase className="w-5 h-5 mr-2" />
-                      Informations générales
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Titre du poste *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          errors.title ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                        }`}
-                        placeholder="Ex: Développeur Full Stack React/Node.js"
-                      />
-                      {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Formulaire principal */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Informations générales */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="flex items-center text-gray-900 dark:text-white">
+                  <Briefcase className="w-5 h-5 mr-2" />
+                  Informations générales
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Titre du poste *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => updateFormField('title', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors ${
+                      errors.title ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                    }`}
+                    placeholder="Ex: Développeur Full Stack React/Node.js"
+                    maxLength={200}
+                  />
+                  {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Département *
-                        </label>
-                        <select
-                          value={formData.department}
-                          onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors.department ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        >
-                          <option value="">Sélectionner un département</option>
-                          {departments.map((dept) => (
-                            <option key={dept} value={dept}>
-                              {dept}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.department && <p className="text-red-500 text-sm mt-1">{errors.department}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Type de contrat
-                        </label>
-                        <select
-                          value={formData.type}
-                          onChange={(e) => setFormData({ ...formData, type: e.target.value as JobFormData["type"] })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        >
-                          <option value="CDI">CDI</option>
-                          <option value="CDD">CDD</option>
-                          <option value="Stage">Stage</option>
-                          <option value="Freelance">Freelance</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Localisation *
-                        </label>
-                        <select
-                          value={formData.location}
-                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors.location ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        >
-                          <option value="">Sélectionner une ville</option>
-                          {locations.map((location) => (
-                            <option key={location} value={location}>
-                              {location}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.location && <p className="text-red-500 text-sm mt-1">{errors.location}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Date limite *
-                        </label>
-                        <input
-                          type="date"
-                          value={formData.deadline}
-                          onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors.deadline ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        />
-                        {errors.deadline && <p className="text-red-500 text-sm mt-1">{errors.deadline}</p>}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Salary */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-gray-900 dark:text-white">
-                      <DollarSign className="w-5 h-5 mr-2" />
-                      Rémunération
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Salaire minimum *
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.salaryMin}
-                          onChange={(e) => setFormData({ ...formData, salaryMin: e.target.value })}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors.salaryMin ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                          }`}
-                          placeholder="15000"
-                        />
-                        {errors.salaryMin && <p className="text-red-500 text-sm mt-1">{errors.salaryMin}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Salaire maximum *
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.salaryMax}
-                          onChange={(e) => setFormData({ ...formData, salaryMax: e.target.value })}
-                          className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            errors.salaryMax ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                          }`}
-                          placeholder="25000"
-                        />
-                        {errors.salaryMax && <p className="text-red-500 text-sm mt-1">{errors.salaryMax}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Devise
-                        </label>
-                        <select
-                          value={formData.currency}
-                          onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        >
-                          <option value="MAD">MAD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="USD">USD</option>
-                        </select>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Description */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900 dark:text-white">Description du poste</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      rows={8}
-                      className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                        errors.description ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                      }`}
-                      placeholder="Décrivez le poste, les missions, l'environnement de travail..."
-                    />
-                    {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
-                  </CardContent>
-                </Card>
-
-                {/* Requirements */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900 dark:text-white">Exigences et compétences</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          value={newRequirement}
-                          onChange={(e) => setNewRequirement(e.target.value)}
-                          onKeyPress={(e) => e.key === "Enter" && addRequirement()}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Ajouter une compétence ou exigence"
-                        />
-                        <Button onClick={addRequirement} type="button">
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {formData.requirements.map((req, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full text-sm"
-                          >
-                            {req}
-                            <button
-                              onClick={() => removeRequirement(index)}
-                              className="ml-2 hover:text-purple-900 dark:hover:text-purple-100"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Benefits */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900 dark:text-white">Avantages</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          value={newBenefit}
-                          onChange={(e) => setNewBenefit(e.target.value)}
-                          onKeyPress={(e) => e.key === "Enter" && addBenefit()}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Ajouter un avantage"
-                        />
-                        <Button onClick={addBenefit} type="button">
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {formData.benefits.map((benefit, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-3 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-full text-sm"
-                          >
-                            {benefit}
-                            <button
-                              onClick={() => removeBenefit(index)}
-                              className="ml-2 hover:text-green-900 dark:hover:text-green-100"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Status */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900 dark:text-white">Statut</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Niveau d'expérience
+                    </label>
                     <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as JobFormData["status"] })}
+                      value={formData.experience_level}
+                      onChange={(e) => updateFormField('experience_level', e.target.value as any)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
-                      <option value="draft">Brouillon</option>
-                      <option value="active">Active</option>
-                      <option value="paused">En pause</option>
-                      <option value="closed">Fermée</option>
+                      {experienceLevels.map((level) => (
+                        <option key={level.value} value={level.value}>
+                          {level.label}
+                        </option>
+                      ))}
                     </select>
-                  </CardContent>
-                </Card>
+                  </div>
 
-                {/* Preview */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900 dark:text-white">Aperçu</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                        {formData.title || "Titre du poste"}
-                      </h3>
-                      <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="flex items-center">
-                          <Briefcase className="w-4 h-4 mr-2" />
-                          {formData.department || "Département"}
-                        </div>
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2" />
-                          {formData.location || "Localisation"}
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="w-4 h-4 mr-2" />
-                          {formData.type}
-                        </div>
-                        {formData.salaryMin && formData.salaryMax && (
-                          <div className="flex items-center">
-                            <DollarSign className="w-4 h-4 mr-2" />
-                            {Number.parseInt(formData.salaryMin).toLocaleString()} -{" "}
-                            {Number.parseInt(formData.salaryMax).toLocaleString()} {formData.currency}
-                          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Type de contrat
+                    </label>
+                    <select
+                      value={formData.contract_type}
+                      onChange={(e) => updateFormField('contract_type', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      {contractTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Localisation *
+                    </label>
+                    <select
+                      value={formData.location}
+                      onChange={(e) => updateFormField('location', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                        errors.location ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                      }`}
+                    >
+                      <option value="">Sélectionner une ville</option>
+                      {locations.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.location && <p className="text-red-500 text-sm mt-1">{errors.location}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Date limite {formData.status === "active" && "*"}
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.deadline}
+                      onChange={(e) => updateFormField('deadline', e.target.value)}
+                      min={new Date().toISOString().split('T')[0]} // Pas de dates passées
+                      className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                        errors.deadline ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                      }`}
+                    />
+                    {errors.deadline && <p className="text-red-500 text-sm mt-1">{errors.deadline}</p>}
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="remote_allowed"
+                    checked={formData.remote_allowed}
+                    onChange={(e) => updateFormField('remote_allowed', e.target.checked)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="remote_allowed" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                    Télétravail autorisé
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Rémunération */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="flex items-center text-gray-900 dark:text-white">
+                  <DollarSign className="w-5 h-5 mr-2" />
+                  Rémunération {formData.status === "active" && "*"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Salaire minimum (MAD) {formData.status === "active" && "*"}
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.salary_min}
+                      onChange={(e) => updateFormField('salary_min', e.target.value)}
+                      min="0"
+                      step="100"
+                      className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                        errors.salary_min ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                      }`}
+                      placeholder="15000"
+                    />
+                    {errors.salary_min && <p className="text-red-500 text-sm mt-1">{errors.salary_min}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Salaire maximum (MAD) {formData.status === "active" && "*"}
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.salary_max}
+                      onChange={(e) => updateFormField('salary_max', e.target.value)}
+                      min="0"
+                      step="100"
+                      className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                        errors.salary_max ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                      }`}
+                      placeholder="25000"
+                    />
+                    {errors.salary_max && <p className="text-red-500 text-sm mt-1">{errors.salary_max}</p>}
+                  </div>
+                </div>
+                
+                {formData.salary_min && formData.salary_max && (
+                  <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Fourchette: {Number.parseInt(formData.salary_min).toLocaleString()} - {Number.parseInt(formData.salary_max).toLocaleString()} MAD
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Description */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Description du poste *</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => updateFormField('description', e.target.value)}
+                  rows={8}
+                  maxLength={5000}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                    errors.description ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                  }`}
+                  placeholder="Décrivez le poste, les missions, l'environnement de travail..."
+                />
+                <div className="flex justify-between items-center mt-1">
+                  {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
+                  <p className="text-gray-500 text-sm ml-auto">{formData.description.length}/5000</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Exigences */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Exigences et compétences</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newRequirement}
+                      onChange={(e) => setNewRequirement(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addRequirement()
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Ajouter une compétence ou exigence"
+                      maxLength={100}
+                    />
+                    <Button 
+                      onClick={addRequirement} 
+                      type="button"
+                      disabled={!newRequirement.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {formData.requirements.map((req, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full text-sm"
+                      >
+                        {req}
+                        <button
+                          onClick={() => removeRequirement(index)}
+                          className="ml-2 hover:text-purple-900 dark:hover:text-purple-100"
+                          title="Supprimer cette exigence"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  {formData.requirements.length === 0 && (
+                    <p className="text-gray-500 text-sm italic">Aucune exigence ajoutée</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Avantages */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Avantages</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newBenefit}
+                      onChange={(e) => setNewBenefit(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addBenefit()
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Ajouter un avantage"
+                      maxLength={100}
+                    />
+                    <Button 
+                      onClick={addBenefit} 
+                      type="button"
+                      disabled={!newBenefit.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {formData.benefits.map((benefit, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-3 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-full text-sm"
+                      >
+                        {benefit}
+                        <button
+                          onClick={() => removeBenefit(index)}
+                          className="ml-2 hover:text-green-900 dark:hover:text-green-100"
+                          title="Supprimer cet avantage"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  {formData.benefits.length === 0 && (
+                    <p className="text-gray-500 text-sm italic">Aucun avantage ajouté</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Statut */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Statut</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <select
+                  value={formData.status}
+                  onChange={(e) => updateFormField('status', e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+                
+                <div className="mt-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    formData.status === 'active' ? 'bg-green-100 text-green-800' :
+                    formData.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+                    formData.status === 'closed' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {statusOptions.find(s => s.value === formData.status)?.label}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Aperçu */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Aperçu</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-3">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {formData.title || "Titre du poste"}
+                  </h3>
+                  
+                  <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center">
+                      <Briefcase className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <span>{experienceLevels.find(l => l.value === formData.experience_level)?.label}</span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <span>
+                        {formData.location || "Localisation"}
+                        {formData.remote_allowed && " (Télétravail possible)"}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <span>{formData.contract_type}</span>
+                    </div>
+                    
+                    {formData.salary_min && formData.salary_max && (
+                      <div className="flex items-center">
+                        <DollarSign className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span>
+                          {Number.parseInt(formData.salary_min).toLocaleString()} - {Number.parseInt(formData.salary_max).toLocaleString()} MAD
+                        </span>
+                      </div>
+                    )}
+                    
+                    {formData.deadline && (
+                      <div className="flex items-center">
+                        <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span>
+                          Jusqu'au {new Date(formData.deadline).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {formData.requirements.length > 0 && (
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Compétences:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {formData.requirements.slice(0, 3).map((req, index) => (
+                          <span key={index} className="text-xs bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded">
+                            {req}
+                          </span>
+                        ))}
+                        {formData.requirements.length > 3 && (
+                          <span className="text-xs text-gray-500">+{formData.requirements.length - 3} autres</span>
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-                {/* Tips */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-gray-900 dark:text-white">
-                      <AlertCircle className="w-5 h-5 mr-2" />
-                      Conseils
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                    <div>
-                      <strong>Titre accrocheur :</strong> Utilisez des mots-clés pertinents pour attirer les bons
-                      candidats.
-                    </div>
-                    <div>
-                      <strong>Description claire :</strong> Décrivez précisément les missions et l'environnement de
-                      travail.
-                    </div>
-                    <div>
-                      <strong>Compétences spécifiques :</strong> Listez les compétences techniques et soft skills
-                      requises.
-                    </div>
-                    <div>
-                      <strong>Avantages attractifs :</strong> Mettez en avant ce qui différencie votre entreprise.
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+            {/* Conseils */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="flex items-center text-gray-900 dark:text-white">
+                  <AlertCircle className="w-5 h-5 mr-2" />
+                  Conseils
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                <div>
+                  <strong className="text-gray-800 dark:text-gray-200">Titre accrocheur :</strong> 
+                  <span className="ml-1">Utilisez des mots-clés pertinents pour attirer les bons candidats.</span>
+                </div>
+                <div>
+                  <strong className="text-gray-800 dark:text-gray-200">Description claire :</strong> 
+                  <span className="ml-1">Décrivez précisément les missions et l'environnement de travail.</span>
+                </div>
+                <div>
+                  <strong className="text-gray-800 dark:text-gray-200">Compétences spécifiques :</strong> 
+                  <span className="ml-1">Listez les compétences techniques et soft skills requises.</span>
+                </div>
+                <div>
+                  <strong className="text-gray-800 dark:text-gray-200">Avantages attractifs :</strong> 
+                  <span className="ml-1">Mettez en avant ce qui différencie votre entreprise.</span>
+                </div>
+                <div>
+                  <strong className="text-gray-800 dark:text-gray-200">Salaire compétitif :</strong> 
+                  <span className="ml-1">Une fourchette salariale claire améliore les candidatures.</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Statistiques (si mode édition) */}
+            {isEditMode && (
+              <Card className="dark:bg-gray-800 dark:border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 dark:text-white">Statistiques</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Candidatures:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Vues:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Créée le:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {new Date().toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        </main>
+        </div>
+
+        {/* Actions flottantes sur mobile */}
+        <div className="fixed bottom-6 right-6 lg:hidden">
+          <div className="flex flex-col space-y-2">
+            <Button 
+              onClick={() => handleSubmit("draft")} 
+              disabled={saving}
+              className="shadow-lg"
+              size="sm"
+            >
+              <Save className="w-4 h-4" />
+            </Button>
+            
+            <Button
+              onClick={() => handleSubmit("active")}
+              disabled={saving || !canPublish}
+              className="bg-green-600 hover:bg-green-700 shadow-lg"
+              size="sm"
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
