@@ -1,399 +1,1200 @@
-import re
+# cv_parser/cv_parser.py
+# Parser complet pour CV et offres d'emploi avec extraction PDF, traitement LLM et validation
+
+import os
+import sys
 import json
+import re
+import time
 import logging
+from typing import Dict, List, Optional, Tuple, Union
+from pathlib import Path
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Any, Optional
-from .llm_service import LLMService
+import warnings
+warnings.filterwarnings('ignore')
 
-logger = logging.getLogger(__name__)
+# Import des services
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+try:
+    from ocr_service import PDFExtractor, ExtractionResult
+    from llm_service import GemmaClient, LLMResponse
+except ImportError as e:
+    print(f"❌ Erreur d'import: {e}")
+    print("💡 Vérifiez que les dossiers ocr_service et llm_service sont présents")
+    sys.exit(1)
 
-class CVParserService:
-    def __init__(self):
-        self.llm_service = LLMService()
-        self.is_loaded = False
+@dataclass
+class ParsingResult:
+    """Résultat complet du parsing avec métadonnées"""
+    success: bool
+    data: Dict
+    confidence: float
+    execution_time: float
+    extraction_method: str
+    llm_model: str
+    source_file: str
+    errors: List[str]
+    warnings: List[str]
+    raw_text_length: int
+    json_validation_passed: bool
 
-    def load_model(self):
-        """Charge le modèle TinyLLaMA via LLMService"""
-        if not self.is_loaded:
-            try:
-                # Test pour vérifier que le modèle se charge
-                test_response = self.llm_service.generate_resume_summary("Test", max_length=10)
-                self.is_loaded = test_response.get('success', False)
-                if not self.is_loaded:
-                    logger.warning("Modèle LLM non disponible, utilisation des fallbacks regex")
-            except Exception as e:
-                logger.error(f"Erreur chargement modèle LLM: {e}")
-                self.is_loaded = False
-
-    def extract_contact_info(self, text: str) -> Dict[str, Any]:
-        """Extraction des contacts avec patterns étendus"""
-        contact_info = {}
-
-        # Email (amélioré)
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
-        emails = re.findall(email_pattern, text, re.IGNORECASE)
-        if emails:
-            contact_info['email'] = emails[0]
-            if len(emails) > 1:
-                contact_info['all_emails'] = emails
-
-        # Téléphones (patterns internationaux + Maroc)
-        phone_patterns = [
-            r'\+212[- ]?[5-7][0-9]{8}',  # Maroc mobile
-            r'\+212[- ]?[2-9][0-9]{8}',  # Maroc fixe
-            r'0[5-7][0-9]{8}',  # Maroc mobile local
-            r'0[2-9][0-9]{8}',  # Maroc fixe local
-            r'\+33[- ]?[1-9][0-9]{8}',  # France
-            r'\+1[- ]?[0-9]{10}',  # USA/Canada
-            r'[0-9]{2}[- ][0-9]{2}[- ][0-9]{2}[- ][0-9]{2}[- ][0-9]{2}'  # Format général
-        ]
-
-        for pattern in phone_patterns:
-            phones = re.findall(pattern, text)
-            if phones:
-                contact_info['phone'] = phones[0].strip()
-                if len(phones) > 1:
-                    contact_info['all_phones'] = phones
-                break
-
-        # LinkedIn (patterns étendus)
-        linkedin_patterns = [
-            r'linkedin\.com/in/[A-Za-z0-9-]+',
-            r'linkedin\.com/profile/[A-Za-z0-9-]+',
-            r'in/[A-Za-z0-9-]+'
-        ]
-
-        for pattern in linkedin_patterns:
-            linkedin = re.findall(pattern, text, re.IGNORECASE)
-            if linkedin:
-                url = linkedin[0]
-                if not url.startswith('http'):
-                    url = f"https://www.{url}" if url.startswith('linkedin') else f"https://www.linkedin.com/{url}"
-                contact_info['linkedin'] = url
-                break
-
-        # GitHub
-        github_pattern = r'github\.com/[A-Za-z0-9-]+'
-        github = re.findall(github_pattern, text, re.IGNORECASE)
-        if github:
-            contact_info['github'] = f"https://{github[0]}"
-
-        # Adresse (basique)
-        address_keywords = ['adresse', 'address', 'domicilié', 'résidant']
-        lines = text.split('\n')
-        for i, line in enumerate(lines):
-            if any(keyword in line.lower() for keyword in address_keywords):
-                # Prendre cette ligne et potentiellement la suivante
-                address_parts = [line.strip()]
-                if i + 1 < len(lines) and len(lines[i + 1].strip()) > 0:
-                    address_parts.append(lines[i + 1].strip())
-                contact_info['address'] = ' '.join(address_parts)
-                break
-
-        return contact_info
-
-    def extract_skills_with_llm(self, text: str) -> Dict[str, Any]:
-        """Extraction des compétences avec fallback regex si LLM indisponible"""
-        if not self.is_loaded:
-            logger.info("LLM indisponible, utilisation fallback regex pour compétences")
-            return self._extract_skills_fallback(text)
-
-        prompt = f"""
-        Analyse ce CV et extrait UNIQUEMENT les compétences techniques et soft skills mentionnées.
-
-        Texte du CV:
-        {text[:2000]}
-
-        IMPORTANT: Réponds UNIQUEMENT avec ce JSON exact, sans autre texte:
-        {{
-            "technical_skills": ["Python", "Django", "JavaScript"],
-            "soft_skills": ["Leadership", "Communication", "Travail d'équipe"],
-            "languages": [
-                {{"language": "Français", "level": "Natif"}},
-                {{"language": "Anglais", "level": "Courant"}}
-            ],
-            "certifications": ["AWS Certified", "PMP"]
-        }}
-        """
-
-        try:
-            response = self.llm_service.generate_resume_summary(prompt, max_length=600)
-            if not response.get('success'):
-                logger.error(f"Erreur LLM compétences: {response.get('error')}")
-                return self._extract_skills_fallback(text)
-
-            generated_text = response.get('summary', '').strip()
-
-            # Nettoyage et extraction JSON plus robuste
-            json_text = self._extract_json_from_text(generated_text)
-            if json_text:
-                skills_data = json.loads(json_text)
-
-                # Validation de la structure
-                required_keys = ['technical_skills', 'soft_skills', 'languages']
-                if all(key in skills_data for key in required_keys):
-                    return skills_data
-                else:
-                    logger.warning("Structure JSON incomplète, utilisation fallback")
-                    return self._extract_skills_fallback(text)
-            else:
-                logger.warning("Aucun JSON valide détecté, utilisation fallback")
-                return self._extract_skills_fallback(text)
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Erreur parsing JSON compétences: {e}")
-            return self._extract_skills_fallback(text)
-        except Exception as e:
-            logger.error(f"Exception extraction compétences LLM: {e}")
-            return self._extract_skills_fallback(text)
-
-    def _extract_skills_fallback(self, text: str) -> Dict[str, Any]:
-        """Fallback regex pour l'extraction de compétences"""
-        # Compétences techniques communes
-        tech_skills_patterns = [
-            'python', 'java', 'javascript', 'typescript', 'php', 'c#', 'c++',
-            'react', 'angular', 'vue', 'django', 'flask', 'spring', 'laravel',
-            'mysql', 'postgresql', 'mongodb', 'sql', 'nosql',
-            'aws', 'azure', 'docker', 'kubernetes', 'git', 'linux',
-            'machine learning', 'ai', 'data science', 'tensorflow', 'pytorch'
-        ]
-
-        text_lower = text.lower()
-        found_tech_skills = [skill for skill in tech_skills_patterns if skill in text_lower]
-
-        # Langues (patterns basiques)
-        language_patterns = {
-            'français': r'français|french',
-            'anglais': r'anglais|english',
-            'arabe': r'arabe|arabic',
-            'espagnol': r'espagnol|spanish|español'
+class CVParser:
+    """
+    Parser principal pour CV et offres d'emploi
+    Orchestration complète: PDF → Texte → LLM → JSON validé
+    """
+    
+    def __init__(self, 
+                 gemma_model: str = "gemma3:4b",
+                 ollama_url: str = "http://localhost:11434",
+                 pdf_extraction_method: str = "auto",
+                 llm_temperature: float = 0.1,
+                 validation_strict: bool = True,
+                 log_level: str = "INFO"):
+        
+        self.gemma_model = gemma_model
+        self.ollama_url = ollama_url
+        self.pdf_extraction_method = pdf_extraction_method
+        self.llm_temperature = llm_temperature
+        self.validation_strict = validation_strict
+        
+        self.setup_logging(log_level)
+        self._initialize_services()
+        
+        # Statistiques globales
+        self.stats = {
+            "total_processed": 0,
+            "successful_cv_parses": 0,
+            "successful_job_parses": 0,
+            "failed_extractions": 0,
+            "failed_llm_calls": 0,
+            "failed_validations": 0,
+            "total_time": 0.0,
+            "average_processing_time": 0.0
         }
-
-        languages = []
-        for lang, pattern in language_patterns.items():
-            if re.search(pattern, text_lower):
-                languages.append({"language": lang.capitalize(), "level": "À évaluer"})
-
-        return {
-            "technical_skills": found_tech_skills,
-            "soft_skills": [],  # Difficile à extraire avec regex
-            "languages": languages,
-            "certifications": []
-        }
-
-    def extract_experience_with_llm(self, text: str) -> Dict[str, Any]:
-        """Extraction expérience avec fallback"""
-        if not self.is_loaded:
-            return self._extract_experience_fallback(text)
-
-        prompt = f"""
-        Analyse ce CV et extrait l'expérience professionnelle et la formation.
-
-        Texte du CV:
-        {text[:2500]}
-
-        IMPORTANT: Réponds UNIQUEMENT avec ce JSON exact:
-        {{
-            "experience": [
-                {{
-                    "title": "Développeur Full Stack",
-                    "company": "TechCorp",
-                    "duration": "2021-2023",
-                    "description": "Développement applications web",
-                    "years": 2
-                }}
-            ],
-            "education": [
-                {{
-                    "degree": "Master en Informatique",
-                    "institution": "ENSIAS",
-                    "year": "2020",
-                    "field": "Informatique"
-                }}
-            ],
-            "total_experience_years": 3
-        }}
-        """
-
-        try:
-            response = self.llm_service.generate_resume_summary(prompt, max_length=800)
-            if not response.get('success'):
-                return self._extract_experience_fallback(text)
-
-            generated_text = response.get('summary', '').strip()
-            json_text = self._extract_json_from_text(generated_text)
-
-            if json_text:
-                exp_data = json.loads(json_text)
-
-                # Validation basique
-                if 'experience' in exp_data and 'education' in exp_data:
-                    return exp_data
-
-            return self._extract_experience_fallback(text)
-
-        except Exception as e:
-            logger.error(f"Exception extraction expérience LLM: {e}")
-            return self._extract_experience_fallback(text)
-
-    def _extract_experience_fallback(self, text: str) -> Dict[str, Any]:
-        """Fallback basique pour l'expérience"""
-        # Extraction très basique des années d'expérience
-        years_patterns = [
-            r'(\d+)\s*(?:ans?|years?)\s*(?:d.expérience|experience)',
-            r'(\d{4})\s*[-–]\s*(\d{4}|présent|present)'
-        ]
-
-        total_years = 0
-        for pattern in years_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            if matches:
-                if len(matches[0]) == 1:  # Pattern "X ans d'expérience"
-                    total_years = max(total_years, int(matches[0]))
-                else:  # Pattern "2020-2023"
-                    for match in matches:
-                        start_year = int(match[0])
-                        end_year = 2024 if match[1].lower() in ['présent', 'present'] else int(match[1])
-                        total_years += max(0, end_year - start_year)
-                break
-
-        return {
-            "experience": [],
-            "education": [],
-            "total_experience_years": total_years
-        }
-
-    def _extract_json_from_text(self, text: str) -> Optional[str]:
-        """Extrait JSON de manière robuste du texte généré"""
-        # Patterns pour trouver JSON
-        patterns = [
-            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  # JSON simple
-            r'\{.*?\}',  # JSON basique
-        ]
-
-        for pattern in patterns:
-            matches = re.findall(pattern, text, re.DOTALL)
-            for match in matches:
-                try:
-                    # Test si c'est du JSON valide
-                    json.loads(match)
-                    return match
-                except json.JSONDecodeError:
-                    continue
-
-        return None
-
-    def generate_candidate_summary(self, parsed_data: Dict[str, Any]) -> str:
-        """Génération de résumé avec fallback"""
-        if not self.is_loaded:
-            return self._generate_summary_fallback(parsed_data)
-
-        skills = parsed_data.get('skills', {})
-        experience = parsed_data.get('experience', {})
-
-        technical_skills = ', '.join(skills.get('technical_skills', [])[:5])  # Top 5
-        total_years = experience.get('total_experience_years', 0)
-        experiences = experience.get('experience', [])
-        last_exp = experiences[0] if experiences else {}
-
-        last_exp_str = (
-            f"{last_exp.get('title', '')} chez {last_exp.get('company', '')}"
-            if last_exp else "Non spécifiée"
+    
+    def setup_logging(self, log_level: str):
+        """Configuration du logging centralisé"""
+        log_dir = Path("logs")
+        log_dir.mkdir(exist_ok=True)
+        
+        logging.basicConfig(
+            level=getattr(logging, log_level.upper()),
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_dir / 'cv_parser.log', encoding='utf-8'),
+                logging.StreamHandler()
+            ]
         )
-
-        prompt = f"""
-        Génère un résumé professionnel concis (2-3 phrases max) pour ce candidat:
-
-        Compétences principales: {technical_skills}
-        Années d'expérience: {total_years}
-        Dernière expérience: {last_exp_str}
-
-        Réponds en français, style professionnel et concis. PAS de JSON.
-        """
-
+        self.logger = logging.getLogger('CVParser')
+    
+    def _initialize_services(self):
+        """Initialisation des services PDF et LLM"""
         try:
-            response = self.llm_service.generate_resume_summary(prompt, max_length=150)
-            if response.get('success'):
-                summary = response.get('summary', '').strip()
-                # Nettoyage basique
-                summary = re.sub(r'^(Résumé|Summary):\s*', '', summary, flags=re.IGNORECASE)
-                return summary if summary else self._generate_summary_fallback(parsed_data)
-            else:
-                return self._generate_summary_fallback(parsed_data)
+            self.pdf_extractor = PDFExtractor(log_level="INFO")
+            self.logger.info("✅ PDFExtractor initialisé")
+            
+            self.gemma_client = GemmaClient(
+                model_name=self.gemma_model,
+                base_url=self.ollama_url,
+                temperature=self.llm_temperature,
+                max_retries=3,
+                log_level="INFO"
+            )
+            self.logger.info("✅ GemmaClient initialisé")
+            self._health_check()
+            
         except Exception as e:
-            logger.error(f"Exception génération résumé: {e}")
-            return self._generate_summary_fallback(parsed_data)
-
-    def _generate_summary_fallback(self, parsed_data: Dict[str, Any]) -> str:
-        """Génération de résumé basique sans LLM"""
-        skills = parsed_data.get('skills', {})
-        experience = parsed_data.get('experience', {})
-
-        tech_skills_count = len(skills.get('technical_skills', []))
-        total_years = experience.get('total_experience_years', 0)
-
-        if total_years > 0 and tech_skills_count > 0:
-            return f"Professionnel avec {total_years} ans d'expérience et {tech_skills_count} compétences techniques identifiées."
-        elif tech_skills_count > 0:
-            return f"Candidat avec {tech_skills_count} compétences techniques identifiées."
+            self.logger.error(f"❌ Erreur initialisation services: {str(e)}")
+            raise Exception(f"Impossible d'initialiser les services: {str(e)}")
+    
+    def _health_check(self):
+        """Vérification de l'état des services"""
+        try:
+            info = self.pdf_extractor.get_pdf_info("non_existent.pdf")
+            self.logger.info("✅ PDFExtractor opérationnel")
+        except Exception as e:
+            self.logger.warning(f"⚠️ PDFExtractor: {str(e)}")
+        
+        health = self.gemma_client.health_check()
+        if health["status"] == "healthy":
+            self.logger.info("✅ GemmaClient opérationnel")
         else:
-            return "Profil candidat à analyser en détail."
-
-    def process(self, cv_text: str) -> Dict[str, Any]:
-        """Pipeline complet amélioré avec gestion d'erreurs robuste"""
+            raise Exception(f"GemmaClient non opérationnel: {health.get('error', 'Inconnu')}")
+    
+    def _extract_text_from_pdf(self, pdf_path: str) -> ExtractionResult:
+        """Extraction de texte avec la méthode configurée"""
+        return self.pdf_extractor.extract_text_from_pdf(
+            pdf_path, method=self.pdf_extraction_method
+        )
+    
+    def _create_failed_result(self, pdf_path: str, error: str, errors: List[str] = None, start_time: float = None) -> ParsingResult:
+        """Crée un résultat d'erreur structuré"""
+        errors = errors.copy() if errors else []
+        if error not in errors:
+            errors.append(error)
+        
+        execution_time = (time.time() - start_time) if start_time else 0.0
+        
+        return ParsingResult(
+            success=False,
+            data={},
+            confidence=0.0,
+            execution_time=execution_time,
+            extraction_method="unknown",
+            llm_model=self.gemma_model,
+            source_file=pdf_path,
+            errors=errors,
+            warnings=[],
+            raw_text_length=0,
+            json_validation_passed=False
+        )
+    
+    def _calculate_overall_confidence(self, extraction_result, llm_response, parsed_data) -> float:
+        """Calcule la confiance globale dans le parsing"""
+        confidence = 0.0
+        
+        if hasattr(extraction_result, 'confidence'):
+            confidence += extraction_result.confidence * 0.3
+        elif extraction_result and extraction_result.text and len(extraction_result.text) > 100:
+            confidence += 0.8 * 0.3
+        else:
+            confidence += 0.3 * 0.3
+        
+        if hasattr(llm_response, 'execution_time'):
+            time_score = min(llm_response.execution_time / 30.0, 1.0)
+            confidence += time_score * 0.2
+        elif isinstance(llm_response, dict) and llm_response:
+            confidence += 0.7 * 0.2
+        
+        if parsed_data:
+            confidence += 0.5
+            cv_key_fields = ["titre_candidat", "formations", "competences_techniques"]
+            job_key_fields = ["titre_poste", "missions"]
+            
+            key_fields = cv_key_fields if any(field in parsed_data for field in cv_key_fields) else job_key_fields
+            present_fields = sum(1 for field in key_fields if field in parsed_data and parsed_data[field])
+            confidence += (present_fields / len(key_fields)) * 0.3
+        
+        return min(confidence, 1.0)
+    
+    def _validate_cv_data(self, cv_data: Dict) -> Tuple[Dict, List[str]]:
+        """Validation et nettoyage des données du CV"""
+        errors = []
+        validated_data = cv_data.copy()
+        
+        required_fields = ["titre_candidat", "formations", "competences_techniques"]
+        for field in required_fields:
+            if field not in validated_data:
+                errors.append(f"Champ obligatoire manquant: {field}")
+                validated_data[field] = [] if field in ["formations", "competences_techniques"] else ""
+            elif not validated_data[field]:
+                if field in ["formations", "competences_techniques"]:
+                    validated_data[field] = []
+        
         try:
-            # Chargement du modèle
-            self.load_model()
-
-            # Validation du texte d'entrée
-            if not cv_text or len(cv_text.strip()) < 50:
-                return {
-                    "success": False,
-                    "error": "Texte CV trop court ou vide",
-                    "min_length_required": 50
-                }
-
-            # Extraction des données
-            contact_info = self.extract_contact_info(cv_text)
-            skills_data = self.extract_skills_with_llm(cv_text)
-            experience_data = self.extract_experience_with_llm(cv_text)
-
-            # Génération du résumé
-            summary = self.generate_candidate_summary({
-                "skills": skills_data,
-                "experience": experience_data
-            })
-
-            # Calcul de métadonnées
-            metadata = {
-                "parsing_timestamp": datetime.now().isoformat(),
-                "text_length": len(cv_text),
-                "word_count": len(cv_text.split()),
-                "llm_used": self.is_loaded,
-                "sections_found": {
-                    "contact": bool(contact_info),
-                    "skills": bool(skills_data.get('technical_skills')),
-                    "experience": bool(experience_data.get('experience')),
-                    "education": bool(experience_data.get('education'))
-                }
-            }
-
-            parsed_data = {
-                "success": True,
-                "contact": contact_info,
-                "skills": skills_data,
-                "experience": experience_data,
-                "ai_summary": summary,
-                "metadata": metadata
-            }
-
-            return parsed_data
-
+            if "experience_years" in validated_data:
+                exp_years = validated_data["experience_years"]
+                if isinstance(exp_years, str):
+                    numbers = re.findall(r'\d+', exp_years)
+                    validated_data["experience_years"] = int(numbers[0]) if numbers else 0
+                elif not isinstance(exp_years, int):
+                    validated_data["experience_years"] = 0
+                    errors.append("experience_years converti en 0 (type invalide)")
+            else:
+                validated_data["experience_years"] = 0
+            
+            list_fields = [
+                "formations", "experience", "competences_techniques", 
+                "competences_informatiques", "langues", "certifications", 
+                "projets", "soft_skills"
+            ]
+            
+            for field in list_fields:
+                if field in validated_data:
+                    if not isinstance(validated_data[field], list):
+                        validated_data[field] = []
+                        errors.append(f"{field} converti en liste vide (type invalide)")
+                else:
+                    validated_data[field] = []
+            
+            string_fields = ["titre_candidat", "profil_resume"]
+            for field in string_fields:
+                if field in validated_data:
+                    if not isinstance(validated_data[field], str):
+                        validated_data[field] = str(validated_data[field])
+                    validated_data[field] = validated_data[field].strip()
+                else:
+                    validated_data[field] = ""
+            
+            if "coordonnees" in validated_data:
+                if not isinstance(validated_data["coordonnees"], dict):
+                    validated_data["coordonnees"] = {}
+                    errors.append("coordonnees converti en dict vide")
+            else:
+                validated_data["coordonnees"] = {}
+                
         except Exception as e:
-            logger.error(f"Erreur lors du parsing complet du CV: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "parsing_timestamp": datetime.now().isoformat()
+            errors.append(f"Erreur validation: {str(e)}")
+        
+        return validated_data, errors
+    
+    def _validate_job_data(self, job_data: Dict) -> Tuple[Dict, List[str]]:
+        """Validation et nettoyage des données d'offre"""
+        errors = []
+        validated_data = job_data.copy()
+        
+        required_fields = ["titre_poste"]
+        for field in required_fields:
+            if field not in validated_data or not validated_data[field]:
+                errors.append(f"Champ obligatoire manquant: {field}")
+                validated_data[field] = ""
+        
+        if "missions" in validated_data:
+            missions = validated_data["missions"]
+            if isinstance(missions, str):
+                if missions.strip():
+                    validated_data["missions"] = [missions.strip()]
+                else:
+                    validated_data["missions"] = []
+            elif isinstance(missions, list):
+                validated_data["missions"] = [str(m).strip() for m in missions if m and str(m).strip()]
+            else:
+                errors.append("missions converti en liste vide (type invalide)")
+                validated_data["missions"] = []
+        else:
+            validated_data["missions"] = []
+        
+        try:
+            if "experience_requise" in validated_data:
+                exp_req = validated_data["experience_requise"]
+                if isinstance(exp_req, str):
+                    numbers = re.findall(r'\d+', exp_req)
+                    validated_data["experience_requise"] = int(numbers[0]) if numbers else 0
+                elif not isinstance(exp_req, int):
+                    validated_data["experience_requise"] = 0
+                    errors.append("experience_requise converti en 0 (type invalide)")
+            else:
+                validated_data["experience_requise"] = 0
+            
+            list_fields = [
+                "missions", "competences_requises", "competences_techniques", 
+                "certifications_requises", "avantages", "formations_requises"
+            ]
+            
+            for field in list_fields:
+                if field in validated_data:
+                    if not isinstance(validated_data[field], list):
+                        validated_data[field] = []
+                        errors.append(f"{field} converti en liste vide (type invalide)")
+                else:
+                    validated_data[field] = []
+            
+            if "type_contrat" in validated_data:
+                contrat = str(validated_data["type_contrat"]).lower().strip()
+                valid_contrats = ["cdi", "cdd", "freelance", "stage", "alternance", "emploi"]
+                
+                if contrat == "emploi":
+                    validated_data["type_contrat"] = "CDI"
+                elif contrat in valid_contrats:
+                    validated_data["type_contrat"] = contrat.upper()
+                else:
+                    errors.append(f"Type de contrat non reconnu: {contrat}")
+                    validated_data["type_contrat"] = "CDI"
+            else:
+                validated_data["type_contrat"] = "CDI"
+            
+            string_fields = [
+                "titre_poste", "entreprise", "lieu", "localisation", "type_contrat", 
+                "salaire", "description", "profil_recherche"
+            ]
+            for field in string_fields:
+                if field in validated_data:
+                    if not isinstance(validated_data[field], str):
+                        validated_data[field] = str(validated_data[field])
+                    validated_data[field] = validated_data[field].strip()
+                else:
+                    validated_data[field] = ""
+            
+            if "infos_entreprise" in validated_data:
+                if not isinstance(validated_data["infos_entreprise"], dict):
+                    validated_data["infos_entreprise"] = {}
+                    errors.append("infos_entreprise converti en dict vide")
+            else:
+                validated_data["infos_entreprise"] = {}
+                
+        except Exception as e:
+            errors.append(f"Erreur validation: {str(e)}")
+        
+        return validated_data, errors
+    
+    def parse_cv_from_pdf(self, pdf_path: str) -> ParsingResult:
+        """Parse complet d'un CV depuis un PDF"""
+        start_time = time.time()
+        self.stats["total_processed"] += 1
+        errors = []
+        warnings = []
+        
+        self.logger.info(f"🔍 Début parsing CV: {pdf_path}")
+        
+        try:
+            extraction_result = self._extract_text_from_pdf(pdf_path)
+            if not extraction_result.text:
+                error_msg = "Impossible d'extraire le texte du PDF"
+                errors.extend(extraction_result.errors)
+                self.stats["failed_extractions"] += 1
+                return self._create_failed_result(pdf_path, error_msg, errors, start_time)
+            
+            self.logger.info(f"📄 Texte extrait: {len(extraction_result.text)} caractères")
+            
+            llm_result = self.gemma_client.parse_cv_text(extraction_result.text)
+            if "error" in llm_result:
+                error_msg = f"Erreur LLM: {llm_result['error']}"
+                errors.append(error_msg)
+                self.stats["failed_llm_calls"] += 1
+                return self._create_failed_result(pdf_path, error_msg, errors, start_time)
+            
+            self.logger.info("🤖 Parsing LLM réussi")
+            
+            validated_data, validation_errors = self._validate_cv_data(llm_result)
+            if validation_errors and self.validation_strict:
+                errors.extend(validation_errors)
+                self.stats["failed_validations"] += 1
+                return self._create_failed_result(pdf_path, "Validation échouée", errors, start_time)
+            
+            if validation_errors:
+                warnings.extend(validation_errors)
+            
+            confidence = self._calculate_overall_confidence(
+                extraction_result, llm_result, validated_data
+            )
+            
+            execution_time = time.time() - start_time
+            
+            self.stats["successful_cv_parses"] += 1
+            self.stats["total_time"] += execution_time
+            self.stats["average_processing_time"] = (
+                self.stats["total_time"] / self.stats["total_processed"]
+            )
+            
+            self.logger.info(f"✅ CV parsé avec succès en {execution_time:.2f}s")
+            
+            return ParsingResult(
+                success=True,
+                data=validated_data,
+                confidence=confidence,
+                execution_time=execution_time,
+                extraction_method=extraction_result.method_used,
+                llm_model=self.gemma_model,
+                source_file=pdf_path,
+                errors=errors,
+                warnings=warnings,
+                raw_text_length=len(extraction_result.text),
+                json_validation_passed=len(validation_errors) == 0
+            )
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            error_msg = f"Erreur inattendue: {str(e)}"
+            self.logger.error(error_msg)
+            return self._create_failed_result(pdf_path, error_msg, [error_msg], start_time)
+    
+    def parse_job_from_pdf(self, pdf_path: str) -> ParsingResult:
+        """Parse complet d'une offre d'emploi depuis un PDF"""
+        start_time = time.time()
+        self.stats["total_processed"] += 1
+        errors = []
+        warnings = []
+        
+        self.logger.info(f"🔍 Début parsing offre: {pdf_path}")
+        
+        try:
+            extraction_result = self._extract_text_from_pdf(pdf_path)
+            if not extraction_result.text:
+                error_msg = "Impossible d'extraire le texte du PDF"
+                errors.extend(extraction_result.errors)
+                self.stats["failed_extractions"] += 1
+                return self._create_failed_result(pdf_path, error_msg, errors, start_time)
+            
+            self.logger.info(f"📄 Texte extrait: {len(extraction_result.text)} caractères")
+            
+            llm_result = self.gemma_client.parse_job_text(extraction_result.text)
+            if "error" in llm_result:
+                error_msg = f"Erreur LLM: {llm_result['error']}"
+                errors.append(error_msg)
+                self.stats["failed_llm_calls"] += 1
+                return self._create_failed_result(pdf_path, error_msg, errors, start_time)
+            
+            self.logger.info("🤖 Parsing LLM réussi")
+            
+            if "missions" in llm_result and isinstance(llm_result["missions"], str):
+                llm_result["missions"] = [llm_result["missions"]]
+            
+            validated_data, validation_errors = self._validate_job_data(llm_result)
+            if validation_errors and self.validation_strict:
+                errors.extend(validation_errors)
+                self.stats["failed_validations"] += 1
+                return self._create_failed_result(pdf_path, "Validation échouée", errors, start_time)
+            
+            if validation_errors:
+                warnings.extend(validation_errors)
+            
+            confidence = self._calculate_overall_confidence(
+                extraction_result, llm_result, validated_data
+            )
+            
+            execution_time = time.time() - start_time
+            
+            self.stats["successful_job_parses"] += 1
+            self.stats["total_time"] += execution_time
+            self.stats["average_processing_time"] = (
+                self.stats["total_time"] / self.stats["total_processed"]
+            )
+            
+            self.logger.info(f"✅ Offre parsée avec succès en {execution_time:.2f}s")
+            
+            return ParsingResult(
+                success=True,
+                data=validated_data,
+                confidence=confidence,
+                execution_time=execution_time,
+                extraction_method=extraction_result.method_used,
+                llm_model=self.gemma_model,
+                source_file=pdf_path,
+                errors=errors,
+                warnings=warnings,
+                raw_text_length=len(extraction_result.text),
+                json_validation_passed=len(validation_errors) == 0
+            )
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            error_msg = f"Erreur inattendue: {str(e)}"
+            self.logger.error(error_msg)
+            return self._create_failed_result(pdf_path, error_msg, [error_msg], start_time)
+    
+    def batch_parse_cvs(self, pdf_directory: str, output_directory: str = None) -> Dict:
+        """Traitement par lot de CVs"""
+        pdf_dir = Path(pdf_directory)
+        if not pdf_dir.exists():
+            raise FileNotFoundError(f"Dossier non trouvé: {pdf_directory}")
+        
+        if output_directory:
+            output_dir = Path(output_directory)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        
+        pdf_files = list(pdf_dir.glob("*.pdf"))
+        if not pdf_files:
+            self.logger.warning(f"Aucun fichier PDF trouvé dans {pdf_directory}")
+            return {"processed": 0, "successful": 0, "failed": 0, "results": []}
+        
+        self.logger.info(f"🚀 Début traitement par lot: {len(pdf_files)} CVs")
+        
+        batch_results = []
+        successful = 0
+        failed = 0
+        
+        for pdf_file in pdf_files:
+            try:
+                self.logger.info(f"📝 Traitement: {pdf_file.name}")
+                result = self.parse_cv_from_pdf(str(pdf_file))
+                
+                batch_results.append({
+                    "file": pdf_file.name,
+                    "success": result.success,
+                    "confidence": result.confidence,
+                    "execution_time": result.execution_time,
+                    "errors": result.errors,
+                    "warnings": result.warnings
+                })
+                
+                if result.success:
+                    successful += 1
+                    
+                    if output_directory:
+                        output_file = output_dir / f"{pdf_file.stem}_parsed.json"
+                        with open(output_file, 'w', encoding='utf-8') as f:
+                            json.dump({
+                                "metadata": {
+                                    "source_file": pdf_file.name,
+                                    "parsing_date": datetime.now().isoformat(),
+                                    "confidence": result.confidence,
+                                    "execution_time": result.execution_time,
+                                    "llm_model": result.llm_model,
+                                    "extraction_method": result.extraction_method
+                                },
+                                "cv_data": result.data
+                            }, f, indent=2, ensure_ascii=False)
+                        
+                        self.logger.info(f"✅ Sauvegardé: {output_file}")
+                else:
+                    failed += 1
+                    self.logger.error(f"❌ Échec: {pdf_file.name} - {result.errors}")
+                    
+            except Exception as e:
+                failed += 1
+                error_msg = f"Erreur inattendue pour {pdf_file.name}: {str(e)}"
+                self.logger.error(error_msg)
+                batch_results.append({
+                    "file": pdf_file.name,
+                    "success": False,
+                    "confidence": 0.0,
+                    "execution_time": 0.0,
+                    "errors": [error_msg],
+                    "warnings": []
+                })
+        
+        batch_report = {
+            "processed": len(pdf_files),
+            "successful": successful,
+            "failed": failed,
+            "success_rate": (successful / len(pdf_files)) * 100 if pdf_files else 0,
+            "total_time": sum(r["execution_time"] for r in batch_results),
+            "average_time": sum(r["execution_time"] for r in batch_results) / len(batch_results) if batch_results else 0,
+            "results": batch_results
+        }
+        
+        self.logger.info(f"📊 Traitement terminé: {successful}/{len(pdf_files)} réussis")
+        
+        if output_directory:
+            report_file = output_dir / "batch_report.json"
+            with open(report_file, 'w', encoding='utf-8') as f:
+                json.dump(batch_report, f, indent=2, ensure_ascii=False)
+        
+        return batch_report
+    
+    def batch_parse_jobs(self, pdf_directory: str, output_directory: str = None) -> Dict:
+        """Traitement par lot d'offres d'emploi"""
+        pdf_dir = Path(pdf_directory)
+        if not pdf_dir.exists():
+            raise FileNotFoundError(f"Dossier non trouvé: {pdf_directory}")
+        
+        if output_directory:
+            output_dir = Path(output_directory)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        
+        pdf_files = list(pdf_dir.glob("*.pdf"))
+        if not pdf_files:
+            self.logger.warning(f"Aucun fichier PDF trouvé dans {pdf_directory}")
+            return {"processed": 0, "successful": 0, "failed": 0, "results": []}
+        
+        self.logger.info(f"🚀 Début traitement par lot: {len(pdf_files)} offres")
+        
+        batch_results = []
+        successful = 0
+        failed = 0
+        
+        for pdf_file in pdf_files:
+            try:
+                self.logger.info(f"📋 Traitement: {pdf_file.name}")
+                result = self.parse_job_from_pdf(str(pdf_file))
+                
+                batch_results.append({
+                    "file": pdf_file.name,
+                    "success": result.success,
+                    "confidence": result.confidence,
+                    "execution_time": result.execution_time,
+                    "errors": result.errors,
+                    "warnings": result.warnings
+                })
+                
+                if result.success:
+                    successful += 1
+                    
+                    if output_directory:
+                        output_file = output_dir / f"{pdf_file.stem}_parsed.json"
+                        with open(output_file, 'w', encoding='utf-8') as f:
+                            json.dump({
+                                "metadata": {
+                                    "source_file": pdf_file.name,
+                                    "parsing_date": datetime.now().isoformat(),
+                                    "confidence": result.confidence,
+                                    "execution_time": result.execution_time,
+                                    "llm_model": result.llm_model,
+                                    "extraction_method": result.extraction_method
+                                },
+                                "job_data": result.data
+                            }, f, indent=2, ensure_ascii=False)
+                        
+                        self.logger.info(f"✅ Sauvegardé: {output_file}")
+                else:
+                    failed += 1
+                    self.logger.error(f"❌ Échec: {pdf_file.name} - {result.errors}")
+                    
+            except Exception as e:
+                failed += 1
+                error_msg = f"Erreur inattendue pour {pdf_file.name}: {str(e)}"
+                self.logger.error(error_msg)
+                batch_results.append({
+                    "file": pdf_file.name,
+                    "success": False,
+                    "confidence": 0.0,
+                    "execution_time": 0.0,
+                    "errors": [error_msg],
+                    "warnings": []
+                })
+        
+        batch_report = {
+            "processed": len(pdf_files),
+            "successful": successful,
+            "failed": failed,
+            "success_rate": (successful / len(pdf_files)) * 100 if pdf_files else 0,
+            "total_time": sum(r["execution_time"] for r in batch_results),
+            "average_time": sum(r["execution_time"] for r in batch_results) / len(batch_results) if batch_results else 0,
+            "results": batch_results
+        }
+        
+        self.logger.info(f"📊 Traitement terminé: {successful}/{len(pdf_files)} réussis")
+        
+        if output_directory:
+            report_file = output_dir / "batch_report_jobs.json"
+            with open(report_file, 'w', encoding='utf-8') as f:
+                json.dump(batch_report, f, indent=2, ensure_ascii=False)
+        
+        return batch_report
+    
+    def get_statistics(self) -> Dict:
+        """Retourne les statistiques d'utilisation"""
+        return {
+            "global_stats": self.stats.copy(),
+            "services_status": {
+                "pdf_extractor": "✅ Opérationnel",
+                "gemma_client": self.gemma_client.health_check()
+            },
+            "configuration": {
+                "gemma_model": self.gemma_model,
+                "ollama_url": self.ollama_url,
+                "pdf_extraction_method": self.pdf_extraction_method,
+                "llm_temperature": self.llm_temperature,
+                "validation_strict": self.validation_strict
             }
+        }
+    
+    def export_result_to_json(self, result: ParsingResult, output_path: str):
+        """Exporte un résultat de parsing vers un fichier JSON"""
+        export_data = {
+            "metadata": {
+                "success": result.success,
+                "confidence": result.confidence,
+                "execution_time": result.execution_time,
+                "extraction_method": result.extraction_method,
+                "llm_model": result.llm_model,
+                "source_file": result.source_file,
+                "parsing_date": datetime.now().isoformat(),
+                "raw_text_length": result.raw_text_length,
+                "json_validation_passed": result.json_validation_passed
+            },
+            "data": result.data,
+            "errors": result.errors,
+            "warnings": result.warnings
+        }
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+        
+        self.logger.info(f"✅ Résultat exporté: {output_path}")
+    
+    def parse_text_directly(self, text: str, document_type: str = "cv") -> ParsingResult:
+        """Parse directement du texte (sans extraction PDF)"""
+        start_time = time.time()
+        self.stats["total_processed"] += 1
+        errors = []
+        warnings = []
+        
+        self.logger.info(f"🔍 Début parsing texte direct: {document_type}")
+        
+        try:
+            if not text or len(text.strip()) < 50:
+                error_msg = "Texte insuffisant pour le parsing"
+                return self._create_failed_result("direct_text", error_msg, [error_msg], start_time)
+            
+            if document_type.lower() == "cv":
+                llm_result = self.gemma_client.parse_cv_text(text)
+                validation_func = self._validate_cv_data
+                stats_key = "successful_cv_parses"
+            else:
+                llm_result = self.gemma_client.parse_job_text(text)
+                validation_func = self._validate_job_data
+                stats_key = "successful_job_parses"
+            
+            if "error" in llm_result:
+                error_msg = f"Erreur LLM: {llm_result['error']}"
+                errors.append(error_msg)
+                self.stats["failed_llm_calls"] += 1
+                return self._create_failed_result("direct_text", error_msg, errors, start_time)
+            
+            self.logger.info("🤖 Parsing LLM réussi")
+            
+            validated_data, validation_errors = validation_func(llm_result)
+            if validation_errors and self.validation_strict:
+                errors.extend(validation_errors)
+                self.stats["failed_validations"] += 1
+                return self._create_failed_result("direct_text", "Validation échouée", errors, start_time)
+            
+            if validation_errors:
+                warnings.extend(validation_errors)
+            
+            mock_extraction = type('obj', (object,), {
+                'text': text, 
+                'confidence': 0.9,
+                'method_used': 'direct_text'
+            })
+            
+            confidence = self._calculate_overall_confidence(
+                mock_extraction, llm_result, validated_data
+            )
+            
+            execution_time = time.time() - start_time
+            
+            self.stats[stats_key] += 1
+            self.stats["total_time"] += execution_time
+            self.stats["average_processing_time"] = (
+                self.stats["total_time"] / self.stats["total_processed"]
+            )
+            
+            self.logger.info(f"✅ Texte parsé avec succès en {execution_time:.2f}s")
+            
+            return ParsingResult(
+                success=True,
+                data=validated_data,
+                confidence=confidence,
+                execution_time=execution_time,
+                extraction_method="direct_text",
+                llm_model=self.gemma_model,
+                source_file="direct_text",
+                errors=errors,
+                warnings=warnings,
+                raw_text_length=len(text),
+                json_validation_passed=len(validation_errors) == 0
+            )
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            error_msg = f"Erreur inattendue: {str(e)}"
+            self.logger.error(error_msg)
+            return self._create_failed_result("direct_text", error_msg, [error_msg], start_time)
+    
+    def compare_cv_job_match(self, cv_data: Dict, job_data: Dict) -> Dict:
+        """Compare un CV avec une offre d'emploi pour évaluer la compatibilité"""
+        try:
+            self.logger.info("🔄 Analyse de compatibilité CV/Offre")
+            
+            match_result = {
+                "overall_score": 0.0,
+                "compatibility_level": "Faible",
+                "strengths": [],
+                "weaknesses": [],
+                "missing_skills": [],
+                "matching_skills": [],
+                "experience_match": {
+                    "required": job_data.get("experience_requise", 0),
+                    "candidate": cv_data.get("experience_years", 0),
+                    "match": False
+                },
+                "detailed_analysis": {},
+                "recommendations": []
+            }
+            
+            scores = []
+            
+            job_skills = set(job_data.get("competences_techniques", []))
+            cv_skills = set(cv_data.get("competences_techniques", []))
+            
+            job_skills_norm = {skill.lower().strip() for skill in job_skills if skill}
+            cv_skills_norm = {skill.lower().strip() for skill in cv_skills if skill}
+            
+            if job_skills_norm:
+                matching_skills_norm = job_skills_norm.intersection(cv_skills_norm)
+                missing_skills_norm = job_skills_norm - cv_skills_norm
+                
+                skill_score = len(matching_skills_norm) / len(job_skills_norm)
+                scores.append(("competences_techniques", skill_score, 0.4))
+                
+                match_result["matching_skills"] = [
+                    skill for skill in job_skills 
+                    if skill.lower().strip() in matching_skills_norm
+                ]
+                match_result["missing_skills"] = [
+                    skill for skill in job_skills 
+                    if skill.lower().strip() in missing_skills_norm
+                ]
+                
+                if matching_skills_norm:
+                    match_result["strengths"].append(f"Maîtrise {len(matching_skills_norm)} compétences requises")
+                if missing_skills_norm:
+                    match_result["weaknesses"].append(f"Manque {len(missing_skills_norm)} compétences techniques")
+            
+            required_exp = job_data.get("experience_requise", 0)
+            candidate_exp = cv_data.get("experience_years", 0)
+            
+            if required_exp > 0:
+                exp_ratio = min(candidate_exp / required_exp, 1.5)
+                exp_score = min(exp_ratio, 1.0)
+                scores.append(("experience", exp_score, 0.3))
+                
+                match_result["experience_match"]["match"] = candidate_exp >= required_exp
+                
+                if candidate_exp >= required_exp:
+                    match_result["strengths"].append(f"Expérience suffisante ({candidate_exp} ans)")
+                else:
+                    match_result["weaknesses"].append(f"Expérience insuffisante ({candidate_exp}/{required_exp} ans)")
+            
+            job_formations = job_data.get("formations_requises", [])
+            cv_formations = [f.get("domaine", "") if isinstance(f, dict) else str(f) 
+                           for f in cv_data.get("formations", [])]
+            
+            if job_formations and cv_formations:
+                formation_matches = 0
+                for jf in job_formations:
+                    for cf in cv_formations:
+                        if (jf.lower().strip() in cf.lower().strip() or 
+                            cf.lower().strip() in jf.lower().strip()):
+                            formation_matches += 1
+                            break
+                
+                formation_score = min(formation_matches / len(job_formations), 1.0)
+                scores.append(("formations", formation_score, 0.2))
+                
+                if formation_matches > 0:
+                    match_result["strengths"].append("Formation pertinente")
+                else:
+                    match_result["weaknesses"].append("Formation non alignée")
+            
+            job_soft_skills = job_data.get("competences_requises", [])
+            cv_soft_skills = cv_data.get("soft_skills", [])
+            
+            if job_soft_skills and cv_soft_skills:
+                soft_matches = 0
+                for js in job_soft_skills:
+                    for cs in cv_soft_skills:
+                        if (js.lower().strip() in cs.lower().strip() or 
+                            cs.lower().strip() in js.lower().strip()):
+                            soft_matches += 1
+                            break
+                
+                soft_score = min(soft_matches / len(job_soft_skills), 1.0)
+                scores.append(("soft_skills", soft_score, 0.1))
+                
+                if soft_matches > 0:
+                    match_result["strengths"].append(f"Compétences transversales alignées ({soft_matches})")
+            
+            if scores:
+                weighted_score = sum(score * weight for _, score, weight in scores)
+                total_weight = sum(weight for _, _, weight in scores)
+                match_result["overall_score"] = weighted_score / total_weight if total_weight > 0 else 0
+            
+            score = match_result["overall_score"]
+            if score >= 0.8:
+                match_result["compatibility_level"] = "Excellente"
+            elif score >= 0.6:
+                match_result["compatibility_level"] = "Bonne"
+            elif score >= 0.4:
+                match_result["compatibility_level"] = "Moyenne"
+            elif score >= 0.2:
+                match_result["compatibility_level"] = "Faible"
+            else:
+                match_result["compatibility_level"] = "Très faible"
+            
+            match_result["detailed_analysis"] = {
+                component: {
+                    "score": round(score, 3), 
+                    "weight": weight, 
+                    "contribution": round(score * weight, 3)
+                }
+                for component, score, weight in scores
+            }
+            
+            if match_result["missing_skills"]:
+                top_missing = match_result["missing_skills"][:3]
+                match_result["recommendations"].append(
+                    f"Développer les compétences: {', '.join(top_missing)}"
+                )
+            
+            if not match_result["experience_match"]["match"]:
+                exp_gap = required_exp - candidate_exp
+                match_result["recommendations"].append(
+                    f"Acquérir {exp_gap} années d'expérience supplémentaires"
+                )
+            
+            if score < 0.5:
+                match_result["recommendations"].append(
+                    "Envisager une formation complémentaire ou cibler des postes plus adaptés"
+                )
+            elif score >= 0.7:
+                match_result["recommendations"].append(
+                    "Profil très adapté - Mettre en avant les compétences matching"
+                )
+            
+            self.logger.info(f"✅ Analyse terminée: {match_result['compatibility_level']} ({score:.1%})")
+            return match_result
+            
+        except Exception as e:
+            self.logger.error(f"❌ Erreur analyse compatibilité: {str(e)}")
+            return {
+                "overall_score": 0.0,
+                "compatibility_level": "Erreur",
+                "error": str(e),
+                "strengths": [],
+                "weaknesses": [],
+                "missing_skills": [],
+                "matching_skills": [],
+                "experience_match": {"required": 0, "candidate": 0, "match": False},
+                "detailed_analysis": {},
+                "recommendations": []
+            }
+    
+    def generate_cv_summary(self, cv_data: Dict) -> Dict:
+        """Génère un résumé structuré du CV"""
+        try:
+            self.logger.info("📝 Génération résumé CV")
+            
+            summary = {
+                "profil_titre": cv_data.get("titre_candidat", "Profil non spécifié"),
+                "experience_totale": cv_data.get("experience_years", 0),
+                "niveau_experience": "",
+                "competences_cles": [],
+                "domaines_expertise": [],
+                "formations_principales": [],
+                "langues_parlees": [],
+                "certifications_importantes": [],
+                "points_forts": [],
+                "profil_type": "",
+                "secteurs_activite": []
+            }
+            
+            exp_years = summary["experience_totale"]
+            if exp_years == 0:
+                summary["niveau_experience"] = "Débutant/Junior"
+            elif exp_years <= 2:
+                summary["niveau_experience"] = "Junior"
+            elif exp_years <= 5:
+                summary["niveau_experience"] = "Confirmé"
+            elif exp_years <= 10:
+                summary["niveau_experience"] = "Senior"
+            else:
+                summary["niveau_experience"] = "Expert"
+            
+            competences = cv_data.get("competences_techniques", [])
+            summary["competences_cles"] = competences[:5] if competences else []
+            
+            experiences = cv_data.get("experience", [])
+            domaines = set()
+            secteurs = set()
+            
+            for exp in experiences:
+                if isinstance(exp, dict):
+                    poste = exp.get("poste", "").lower()
+                    entreprise = exp.get("entreprise", "").lower()
+                    
+                    if any(tech in poste for tech in ["développeur", "dev", "programmer", "software"]):
+                        domaines.add("Développement logiciel")
+                    if any(tech in poste for tech in ["data", "analyst", "analytics"]):
+                        domaines.add("Analyse de données")
+                    if any(tech in poste for tech in ["marketing", "commercial", "vente"]):
+                        domaines.add("Marketing/Commercial")
+                    if any(tech in poste for tech in ["manager", "chef", "lead", "directeur"]):
+                        domaines.add("Management")
+                    if any(tech in poste for tech in ["consultant", "conseil"]):
+                        domaines.add("Conseil")
+                    
+                    if any(sect in entreprise for sect in ["banque", "finance", "bank"]):
+                        secteurs.add("Finance/Banque")
+                    if any(sect in entreprise for sect in ["tech", "digital", "software", "it"]):
+                        secteurs.add("Technologies")
+                    if any(sect in entreprise for sect in ["retail", "commerce", "vente"]):
+                        secteurs.add("Commerce/Retail")
+                    if any(sect in entreprise for sect in ["santé", "medical", "pharma"]):
+                        secteurs.add("Santé")
+            
+            summary["domaines_expertise"] = list(domaines)
+            summary["secteurs_activite"] = list(secteurs)
+            
+            formations = cv_data.get("formations", [])
+            for formation in formations[:3]:
+                if isinstance(formation, dict):
+                    diplome = formation.get("diplome", "")
+                    domaine = formation.get("domaine", "")
+                    if diplome or domaine:
+                        summary["formations_principales"].append(f"{diplome} - {domaine}".strip(" -"))
+                else:
+                    summary["formations_principales"].append(str(formation))
+            
+            langues = cv_data.get("langues", [])
+            for langue in langues:
+                if isinstance(langue, dict):
+                    nom = langue.get("langue", "")
+                    niveau = langue.get("niveau", "")
+                    if nom:
+                        summary["langues_parlees"].append(f"{nom} ({niveau})".strip(" ()"))
+                else:
+                    summary["langues_parlees"].append(str(langue))
+            
+            certifications = cv_data.get("certifications", [])
+            summary["certifications_importantes"] = certifications[:5]
+            
+            if summary["competences_cles"]:
+                summary["points_forts"].append(f"Maîtrise de {len(summary['competences_cles'])} compétences techniques")
+            
+            if exp_years > 0:
+                summary["points_forts"].append(f"{exp_years} années d'expérience professionnelle")
+            
+            if summary["domaines_expertise"]:
+                summary["points_forts"].append(f"Expertise en {', '.join(summary['domaines_expertise'][:2])}")
+            
+            if summary["certifications_importantes"]:
+                summary["points_forts"].append(f"{len(summary['certifications_importantes'])} certifications")
+            
+            if "Développement logiciel" in summary["domaines_expertise"]:
+                summary["profil_type"] = "Profil Technique/Développeur"
+            elif "Management" in summary["domaines_expertise"]:
+                summary["profil_type"] = "Profil Management"
+            elif "Marketing/Commercial" in summary["domaines_expertise"]:
+                summary["profil_type"] = "Profil Commercial/Marketing"
+            elif "Analyse de données" in summary["domaines_expertise"]:
+                summary["profil_type"] = "Profil Data/Analytique"
+            elif "Conseil" in summary["domaines_expertise"]:
+                summary["profil_type"] = "Profil Conseil/Expertise"
+            else:
+                summary["profil_type"] = "Profil Généraliste"
+            
+            self.logger.info(f"✅ Résumé généré: {summary['profil_type']}")
+            return summary
+            
+        except Exception as e:
+            self.logger.error(f"❌ Erreur génération résumé: {str(e)}")
+            return {
+                "error": str(e),
+                "profil_titre": "Erreur",
+                "experience_totale": 0,
+                "niveau_experience": "Inconnu",
+                "competences_cles": [],
+                "domaines_expertise": [],
+                "formations_principales": [],
+                "langues_parlees": [],
+                "certifications_importantes": [],
+                "points_forts": [],
+                "profil_type": "Erreur",
+                "secteurs_activite": []
+            }
+
+def main():
+    """Point d'entrée principal pour utilisation CLI"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="CV Parser - Extraction PDF vers JSON")
+    parser.add_argument("command", 
+                       choices=["cv", "job", "batch-cv", "batch-job", "stats", "match", "text", "summary"], 
+                       help="Type d'opération")
+    parser.add_argument("--input", "-i", required=True, 
+                       help="Fichier PDF, dossier d'entrée ou texte direct")
+    parser.add_argument("--input2", 
+                       help="Deuxième fichier pour comparaison (commande match)")
+    parser.add_argument("--output", "-o", 
+                       help="Fichier ou dossier de sortie")
+    parser.add_argument("--type", default="cv", choices=["cv", "job"],
+                       help="Type de document pour parsing texte direct")
+    parser.add_argument("--model", default="gemma2:9b", 
+                       help="Modèle Gemma à utiliser")
+    parser.add_argument("--ollama-url", default="http://localhost:11434", 
+                       help="URL du serveur Ollama")
+    parser.add_argument("--extraction-method", default="auto", 
+                       choices=["auto", "pypdf", "pdfplumber", "ocr"],
+                       help="Méthode d'extraction PDF")
+    parser.add_argument("--temperature", type=float, default=0.1, 
+                       help="Température LLM")
+    parser.add_argument("--strict", action="store_true", 
+                       help="Validation stricte")
+    parser.add_argument("--log-level", default="INFO", 
+                       choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                       help="Niveau de log")
+    
+    args = parser.parse_args()
+    
+    try:
+        cv_parser = CVParser(
+            gemma_model=args.model,
+            ollama_url=args.ollama_url,
+            pdf_extraction_method=args.extraction_method,
+            llm_temperature=args.temperature,
+            validation_strict=args.strict,
+            log_level=args.log_level
+        )
+        
+        if args.command == "cv":
+            result = cv_parser.parse_cv_from_pdf(args.input)
+            if args.output:
+                cv_parser.export_result_to_json(result, args.output)
+            else:
+                print(json.dumps(result.data, indent=2, ensure_ascii=False))
+                
+        elif args.command == "job":
+            result = cv_parser.parse_job_from_pdf(args.input)
+            if args.output:
+                cv_parser.export_result_to_json(result, args.output)
+            else:
+                print(json.dumps(result.data, indent=2, ensure_ascii=False))
+        
+        elif args.command == "text":
+            with open(args.input, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            
+            result = cv_parser.parse_text_directly(text_content, args.type)
+            if args.output:
+                cv_parser.export_result_to_json(result, args.output)
+            else:
+                print(json.dumps(result.data, indent=2, ensure_ascii=False))
+                
+        elif args.command == "batch-cv":
+            report = cv_parser.batch_parse_cvs(args.input, args.output)
+            print(f"📊 Traitement terminé: {report['successful']}/{report['processed']} réussis")
+            
+        elif args.command == "batch-job":
+            report = cv_parser.batch_parse_jobs(args.input, args.output)
+            print(f"📊 Traitement terminé: {report['successful']}/{report['processed']} réussis")
+            
+        elif args.command == "match":
+            if not args.input2:
+                print("❌ La commande 'match' nécessite --input2")
+                sys.exit(1)
+            
+            cv_result = cv_parser.parse_cv_from_pdf(args.input)
+            job_result = cv_parser.parse_job_from_pdf(args.input2)
+            
+            if cv_result.success and job_result.success:
+                match_result = cv_parser.compare_cv_job_match(cv_result.data, job_result.data)
+                if args.output:
+                    with open(args.output, 'w', encoding='utf-8') as f:
+                        json.dump(match_result, f, indent=2, ensure_ascii=False)
+                else:
+                    print(json.dumps(match_result, indent=2, ensure_ascii=False))
+            else:
+                print("❌ Erreur lors du parsing des fichiers")
+                if not cv_result.success:
+                    print(f"CV: {cv_result.errors}")
+                if not job_result.success:
+                    print(f"Offre: {job_result.errors}")
+        
+        elif args.command == "summary":
+            cv_result = cv_parser.parse_cv_from_pdf(args.input)
+            if cv_result.success:
+                summary = cv_parser.generate_cv_summary(cv_result.data)
+                if args.output:
+                    with open(args.output, 'w', encoding='utf-8') as f:
+                        json.dump(summary, f, indent=2, ensure_ascii=False)
+                else:
+                    print(json.dumps(summary, indent=2, ensure_ascii=False))
+            else:
+                print(f"❌ Erreur parsing CV: {cv_result.errors}")
+                
+        elif args.command == "stats":
+            stats = cv_parser.get_statistics()
+            print(json.dumps(stats, indent=2, ensure_ascii=False))
+            
+    except Exception as e:
+        print(f"❌ Erreur: {str(e)}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

@@ -22,6 +22,21 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Téléchargement des ressources NLTK (une seule fois)
+# Téléchargement des ressources NLTK (une seule fois)
+try:
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError:
+    nltk.download('punkt_tab')
+# ==================== AJOUT POUR INTÉGRATION ====================
+# Import du cv_parser pour l'intégration
+try:
+    from cv_parser import CVParser, ParsingResult
+except ImportError:
+    print("⚠️ CVParser non trouvé. Fonctionnalités de parsing PDF indisponibles.")
+    CVParser = None
+    ParsingResult = None
+
+# Téléchargement des ressources NLTK (une seule fois)
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -47,7 +62,7 @@ class SkillNormalizer:
         "kotlin": ["kotlin", "android"],
         
         # Frameworks web
-        "react": ["react", "reactjs", "react.js", "nextjs", "next.js"],
+        "react": ["react", "reactjs", "React.js", "nextjs", "next.js"],
         "vue": ["vue", "vuejs", "vue.js", "nuxt", "nuxtjs"],
         "angular": ["angular", "angularjs", "angular2", "angular4"],
         "svelte": ["svelte", "sveltekit"],
@@ -68,7 +83,7 @@ class SkillNormalizer:
         "terraform": ["terraform", "iac", "infrastructure as code"],
         
         # Outils
-        "git": ["git", "github", "gitlab", "version control"],
+        "git": ["git", "Github", "gitlab", "version control"],
         "jenkins": ["jenkins", "ci/cd", "continuous integration"],
         "linux": ["linux", "ubuntu", "centos", "unix"],
         "windows": ["windows", "windows server"],
@@ -144,7 +159,7 @@ class SkillNormalizer:
         "medium_bullshit": [
             "innovation", "synergie", "optimisation", "excellence",
             "performance", "efficacité", "qualité", "dynamique",
-            "proactif", "créatif", "motivé", "passionné",
+            "proactif", "créatif", "motivé",
             "orienté résultats", "force de proposition"
         ],
         "marketing_speak": [
@@ -1869,535 +1884,9 @@ def detect_language_mixing(text: str) -> Dict:
         logger_instance.logger.error(f"Erreur détection langue: {str(e)}")
         return {"primary_language": "unknown", "mixing_detected": False, "confidence": 0}
 
-# ================================
-# 12. TESTS ET EXEMPLES OPTIMISÉS
-# ================================
 
-if __name__ == "__main__":
-    # Données d'exemple (inchangées)
-    exemple_cv_excellent = {
-        "titre_candidat": "Développeur Senior Full Stack Python/React",
-        "profil_resume": "Ingénieur logiciel senior avec 5 ans d'expérience en développement web moderne, spécialisé en Python/Django et React. Passionné par l'innovation et les solutions cutting-edge.",
-        "formations": [
-            {"diplome": "Master en Informatique", "année": 2019},
-            {"diplome": "Licence Informatique", "année": 2017}
-        ],
-        "experience_years": 5,
-        "competences_techniques": [
-            "Python", "Django", "React", "TypeScript", "PostgreSQL", "Docker", "AWS"
-        ],
-        "competences_informatiques": [
-            "Git", "Docker", "AWS", "Linux", "CI/CD"
-        ],
-        "langues": [
-            {"langue": "français", "niveau": "C2"},
-            {"langue": "anglais", "niveau": "C1"}
-        ],
-        "certifications": [
-            "AWS Certified Developer Associate", 
-            "Certified Scrum Master"
-        ],
-        "projets": [
-            {"nom": "TaskManager Pro", "description": "Plateforme de gestion de projets avec React et Django, architecture microservices"}
-        ],
-        "soft_skills": [
-            "leadership", "communication", "résolution de problèmes"
-        ],
-        "experience": [
-            {"poste": "Lead Developer", "missions": "Architecture et développement d'applications web haute performance. Encadrement d'équipe de 4 développeurs."}
-        ]
-    }
 
-    exemple_cv_buzzwords = {
-        "titre_candidat": "Thought Leader & Game-Changer Developer",
-        "profil_resume": "Développeur disruptif avec une approche révolutionnaire de l'innovation digitale. Expert en synergies transversales et solutions paradigmatiques. Passionate about cutting-edge technologies and transformational excellence.",
-        "formations": [
-            {"diplome": "Master Informatique", "année": 2020}
-        ],
-        "experience_years": 3,
-        "competences_techniques": [
-            "Python", "JavaScript", "React"
-        ],
-        "competences_informatiques": [
-            "Git", "Docker"
-        ],
-        "langues": [
-            {"langue": "français", "niveau": "C2"},
-            {"langue": "anglais", "niveau": "B2"}
-        ],
-        "certifications": [],
-        "projets": [
-            {"nom": "Disruptive App", "description": "Application révolutionnaire avec paradigme innovant"}
-        ],
-        "soft_skills": [
-            "leadership", "innovation", "excellence"
-        ],
-        "experience": [
-            {"poste": "Developer", "missions": "Développement d'applications avec approche synergique et mindset agile"}
-        ]
-    }
 
-    exemple_offre_senior = {
-        "titre_poste": "Développeur Full Stack Senior - Python/React",
-        "missions": "Concevoir et développer des applications web haute performance avec Python/Django et React. Participer à l'architecture des systèmes distribués. Encadrer les développeurs junior.",
-        "exigences": {
-            "formation_requise": "bac+5",
-            "annees_experience": 4,
-            "competences_obligatoires": [
-                "Python OBLIGATOIRE", "React REQUIS", "PostgreSQL INDISPENSABLE"
-            ],
-            "competences_souhaitees": [
-                "Docker", "AWS", "TypeScript", "Architecture microservices"
-            ],
-            "langues": ["français: C1", "anglais: B2"],
-            "certifications": ["AWS Certified Developer"],
-            "outils": ["Git", "Docker", "Linux"],
-            "qualites_humaines": [
-                "leadership", "communication", "autonomie"
-            ]
-        }
-    }
-
-    print("🚀 Démarrage du test du système de matching OPTIMISÉ...")
-    
-    # Test 1: Candidat excellent avec nouvelles optimisations
-    print("\n" + "="*100)
-    print("1️⃣ TEST: CANDIDAT EXCELLENT vs OFFRE SENIOR (TOUTES OPTIMISATIONS)")
-    print("="*100)
-    
-    config_tech = MatchingConfig("tech")
-    resultat1 = calculate_match_score_enhanced(
-        exemple_cv_excellent, exemple_offre_senior, 
-        cv_id="cv_excellent", job_id="job_senior",
-        config=config_tech,
-        use_sentence_matching=True,
-        analyze_buzzwords=True
-    )
-    display_results_enhanced(resultat1)
-    
-    # Test 2: CV avec trop de buzzwords
-    print("\n\n" + "="*100)
-    print("2️⃣ TEST: CV AVEC BUZZWORDS EXCESSIFS vs OFFRE SENIOR")
-    print("="*100)
-    
-    resultat2 = calculate_match_score_enhanced(
-        exemple_cv_buzzwords, exemple_offre_senior,
-        cv_id="cv_buzzwords", job_id="job_senior",
-        config=config_tech,
-        use_sentence_matching=True,
-        analyze_buzzwords=True
-    )
-    display_results_enhanced(resultat2)
-    
-    # Test 3: Analyse des écarts de compétences avancée
-    print("\n\n" + "="*100)
-    print("3️⃣ TEST: ANALYSE AVANCÉE DES ÉCARTS DE COMPÉTENCES")
-    print("="*100)
-    
-    gap_analysis = analyze_skill_gaps_advanced(exemple_cv_excellent, exemple_offre_senior)
-    
-    print(f"\n🔍 ANALYSE DES COMPÉTENCES:")
-    print(f"   ✅ Compétences correspondantes: {len(gap_analysis.get('matching_skills', []))}")
-    print(f"   ❌ Compétences manquantes: {len(gap_analysis.get('missing_skills', []))}")
-    print(f"   ➕ Compétences supplémentaires: {len(gap_analysis.get('extra_skills', []))}")
-    print(f"   🎯 Taux de couverture: {gap_analysis.get('coverage_rate', 0)*100:.1f}%")
-    
-    if gap_analysis.get('semantic_matches'):
-        print(f"\n🔄 COMPÉTENCES TRANSFÉRABLES DÉTECTÉES:")
-        for match in gap_analysis['semantic_matches'][:3]:
-            print(f"   • {match['missing']} ≈ {match['closest_cv_skill']} (similarité: {match['similarity']})")
-    
-    # Test 4: Détection de mélange linguistique
-    print("\n\n" + "="*100)
-    print("4️⃣ TEST: DÉTECTION MULTILINGUE")
-    print("="*100)
-    
-    texte_mixte = "Experienced développeur with strong compétences in Python and excellent communication skills"
-    lang_analysis = detect_language_mixing(texte_mixte)
-    
-    print(f"\n🌍 ANALYSE LINGUISTIQUE:")
-    print(f"   Texte: {texte_mixte}")
-    print(f"   Langue principale: {lang_analysis.get('primary_language', 'unknown')}")
-    print(f"   Mélange détecté: {'Oui' if lang_analysis.get('mixing_detected') else 'Non'}")
-    print(f"   Ratio FR/EN: {lang_analysis.get('french_ratio', 0):.1f}/{lang_analysis.get('english_ratio', 0):.1f}")
-    
-    # Test 5: Traitement par lot avec re-ranking
-    print("\n\n" + "="*100)
-    print("5️⃣ TEST: TRAITEMENT PAR LOT AVEC RE-RANKING")
-    print("="*100)
-    
-    cv_candidats_optimized = [
-        {"id": "cv_001", **exemple_cv_excellent},
-        {"id": "cv_002", **exemple_cv_buzzwords},
-        {
-            "id": "cv_003",
-            "titre_candidat": "Full Stack Developer",
-            "profil_resume": "Experienced full-stack developer specializing in modern web technologies. Strong background in Python/Django backend development and React frontend implementation.",
-            "formations": [{"diplome": "Master Computer Science", "année": 2020}],
-            "experience_years": 4,
-            "competences_techniques": ["Python", "Django", "React", "PostgreSQL", "TypeScript"],
-            "competences_informatiques": ["Git", "Docker", "AWS", "Linux"],
-            "langues": [{"langue": "français", "niveau": "B2"}, {"langue": "anglais", "niveau": "C1"}],
-            "certifications": ["AWS Developer Associate"],
-            "projets": [{"nom": "E-commerce Platform", "description": "Full-stack e-commerce solution with Django REST API and React frontend, deployed on AWS"}],
-            "soft_skills": ["problem-solving", "teamwork", "communication"],
-            "experience": [{"poste": "Full Stack Developer", "missions": "Design and implement scalable web applications using Python/Django and React. Collaborate with cross-functional teams to deliver high-quality software solutions."}]
-        },
-        {
-            "id": "cv_004",
-            "titre_candidat": "Développeur Backend Python",
-            "profil_resume": "Développeur backend spécialisé en Python avec une expertise en architecture de systèmes distribués",
-            "formations": [{"diplome": "Ingénieur Informatique", "année": 2019}],
-            "experience_years": 3,
-            "competences_techniques": ["Python", "FastAPI", "PostgreSQL", "Redis", "MongoDB"],
-            "competences_informatiques": ["Docker", "Kubernetes", "CI/CD", "Linux"],
-            "langues": [{"langue": "français", "niveau": "C2"}],
-            "certifications": [],
-            "projets": [{"nom": "Microservices API", "description": "Architecture microservices avec FastAPI et Docker"}],
-            "soft_skills": ["rigueur", "autonomie", "apprentissage"],
-            "experience": [{"poste": "Backend Developer", "missions": "Développement d'APIs REST performantes et architecture de systèmes distribués"}]
-        }
-    ]
-    
-    resultats_lot_optimized = batch_matching_enhanced_optimized(
-        cv_candidats_optimized, exemple_offre_senior, 
-        config=config_tech, 
-        filter_must_have=False,
-        use_reranking=True,
-        top_k_rerank=5
-    )
-    
-    print(f"\n📊 RÉSULTATS DU TRAITEMENT PAR LOT OPTIMISÉ ({len(resultats_lot_optimized)} candidats):")
-    print("-" * 80)
-    
-    for entry in resultats_lot_optimized:
-        cv_id = entry["cv_id"]
-        rank = entry["rank"]
-        result = entry["result"]
-        score = result.get("total_score", 0)
-        level = result.get("interpretation", {}).get("level", "unknown")
-        
-        # Indicateurs de re-ranking
-        reranked_score = entry.get("reranked_score")
-        cross_encoder_score = entry.get("cross_encoder_score")
-        used_reranking = entry.get("used_reranking", False)
-        
-        # Icône selon le niveau
-        if level == "excellent":
-            icon = "🏆"
-        elif level == "very_good":
-            icon = "🥇"
-        elif level == "good":
-            icon = "🥈"
-        elif level == "fair":
-            icon = "🥉"
-        else:
-            icon = "❌"
-        
-        must_have_status = "❌ REJETÉ" if result.get("must_have_failed", False) else "✅ QUALIFIÉ"
-        
-        print(f"{icon} #{rank} - {cv_id}: {score}/100 ({level.upper()}) - {must_have_status}")
-        
-        if used_reranking and reranked_score is not None:
-            print(f"    🔄 Re-ranking: {reranked_score:.1f} (Cross-encoder: {cross_encoder_score:.1f})")
-        
-        # Affichage des nouvelles métriques
-        buzzwords = result.get("buzzword_analysis", {}).get("cv", {})
-        if buzzwords.get("detected"):
-            print(f"    ⚠️  Buzzwords: {buzzwords.get('density', 0):.1f}% ({len(buzzwords.get('detected', []))} détectés)")
-        
-        sentence_matching = result.get("sentence_matching", {})
-        if sentence_matching.get("score", 0) > 0:
-            print(f"    📝 Sentence matching: {sentence_matching.get('score', 0):.2f} (couverture: {sentence_matching.get('coverage', 0)*100:.1f}%)")
-        
-        if result.get("error"):
-            print(f"    ⚠️  Erreur: {result['error']}")
-    
-    # Test 6: Comparaison avec/sans optimisations
-    print("\n\n" + "="*100)
-    print("6️⃣ TEST: COMPARAISON AVEC/SANS OPTIMISATIONS")
-    print("="*100)
-    
-    # Version sans optimisations
-    start_time = time.time()
-    resultat_standard = calculate_match_score_enhanced(
-        exemple_cv_excellent, exemple_offre_senior,
-        cv_id="cv_standard", job_id="job_test",
-        config=config_tech,
-        use_sentence_matching=False,
-        analyze_buzzwords=False
-    )
-    time_standard = (time.time() - start_time) * 1000
-    
-    # Version avec toutes les optimisations
-    start_time = time.time()
-    resultat_optimized = calculate_match_score_enhanced(
-        exemple_cv_excellent, exemple_offre_senior,
-        cv_id="cv_optimized", job_id="job_test",
-        config=config_tech,
-        use_sentence_matching=True,
-        analyze_buzzwords=True
-    )
-    time_optimized = (time.time() - start_time) * 1000
-    
-    print(f"\n⚖️  COMPARAISON DES PERFORMANCES:")
-    print(f"   📊 Score standard: {resultat_standard.get('total_score', 0)}/100 ({time_standard:.1f}ms)")
-    print(f"   🚀 Score optimisé: {resultat_optimized.get('total_score', 0)}/100 ({time_optimized:.1f}ms)")
-    print(f"   📈 Différence: {resultat_optimized.get('total_score', 0) - resultat_standard.get('total_score', 0):+d} points")
-    print(f"   ⏱️  Surcoût temps: {time_optimized - time_standard:+.1f}ms ({((time_optimized/time_standard-1)*100):+.1f}%)")
-    
-    # Test 7: Statistiques système optimisé
-    print("\n\n" + "="*100)
-    print("7️⃣ STATISTIQUES DU SYSTÈME OPTIMISÉ")
-    print("="*100)
-    
-    stats = get_system_stats()
-    perf_stats = stats["performance_stats"]
-    
-    print(f"\n🤖 MODÈLES:")
-    model_status = stats["model_status"]
-    print(f"   Bi-encoder: {'✅' if model_status['ready'] else '❌'} {model_status['bi_encoder']}")
-    print(f"   Cross-encoder: {'✅' if model_status['cross_encoder_ready'] else '❌'} {model_status['cross_encoder']}")
-    
-    print(f"\n💾 CACHE:")
-    cache_stats = stats["cache_stats"]
-    print(f"   Taille: {cache_stats['size']}/{cache_stats['max_size']}")
-    print(f"   Taux de hit: {cache_stats['hit_rate']}%")
-    
-    print(f"\n📈 PERFORMANCES:")
-    if "message" not in perf_stats:
-        score_stats = perf_stats["score_stats"]
-        perf_stats_detail = perf_stats["performance_stats"]
-        opt_stats = perf_stats.get("optimization_stats", {})
-        
-        print(f"   Traitements: {score_stats['total_processed']}")
-        print(f"   Score moyen: {score_stats['average']}/100")
-        print(f"   Temps moyen: {perf_stats_detail['avg_execution_time_ms']}ms")
-        print(f"   Utilisations cross-encoder: {opt_stats.get('cross_encoder_uses', 0)}")
-        print(f"   Matches par phrases: {opt_stats.get('sentence_matches', 0)}")
-    else:
-        print(f"   {perf_stats['message']}")
-    
-    print(f"\n🔧 NORMALISATEUR OPTIMISÉ:")
-    norm_stats = stats["normalizer_stats"]
-    print(f"   Compétences mappées: {norm_stats['skills_mapped']}")
-    print(f"   Certifications mappées: {norm_stats['certifications_mapped']}")
-    print(f"   Soft skills mappées: {norm_stats['soft_skills_mapped']}")
-    print(f"   Buzzwords trackés: {norm_stats['buzzwords_tracked']}")
-    
-    # Test 8: Tests de robustesse des nouvelles fonctionnalités
-    print("\n\n" + "="*100)
-    print("8️⃣ TEST: ROBUSTESSE DES NOUVELLES FONCTIONNALITÉS")
-    print("="*100)
-    
-    print("\n🛡️  Tests de robustesse optimisés:")
-    
-    # Test avec texte vide pour sentence matching
-    try:
-        sentence_result = model_manager.sentence_level_matching("", "Test job description")
-        print(f"   Sentence matching texte vide: ✅ (Score: {sentence_result.get('score', 0):.2f})")
-    except Exception as e:
-        print(f"   Sentence matching texte vide: ❌ {str(e)[:30]}...")
-    
-    # Test avec buzzwords analysis sur texte vide
-    try:
-        buzzword_result = skill_normalizer.analyze_buzzwords("")
-        print(f"   Analyse buzzwords texte vide: ✅ (Score: {buzzword_result.get('score', 0)})")
-    except Exception as e:
-        print(f"   Analyse buzzwords texte vide: ❌ {str(e)[:30]}...")
-    
-    # Test de re-ranking avec liste vide
-    try:
-        rerank_result = rerank_candidates_with_cross_encoder([], "Test job", 5)
-        print(f"   Re-ranking liste vide: ✅ (Résultats: {len(rerank_result)})")
-    except Exception as e:
-        print(f"   Re-ranking liste vide: ❌ {str(e)[:30]}...")
-    
-    # Test de détection langue avec caractères spéciaux
-    try:
-        lang_result = detect_language_mixing("Test with éèàç and special chars !@#$%")
-        print(f"   Détection langue chars spéciaux: ✅ (Langue: {lang_result.get('primary_language')})")
-    except Exception as e:
-        print(f"   Détection langue chars spéciaux: ❌ {str(e)[:30]}...")
-    
-    # Test 9: Benchmark de performance des optimisations
-    print("\n\n" + "="*100)
-    print("9️⃣ BENCHMARK DE PERFORMANCE")
-    print("="*100)
-    
-    import statistics
-    
-    # Benchmark avec différentes configurations
-    benchmark_configs = [
-        ("Standard", {"use_sentence_matching": False, "analyze_buzzwords": False}),
-        ("+ Buzzwords", {"use_sentence_matching": False, "analyze_buzzwords": True}),
-        ("+ Sentence Matching", {"use_sentence_matching": True, "analyze_buzzwords": False}),
-        ("Toutes optimisations", {"use_sentence_matching": True, "analyze_buzzwords": True})
-    ]
-    
-    benchmark_results = []
-    
-    for config_name, config_params in benchmark_configs:
-        times = []
-        scores = []
-        
-        # 5 runs pour chaque configuration
-        for _ in range(5):
-            start_time = time.time()
-            result = calculate_match_score_enhanced(
-                exemple_cv_excellent, exemple_offre_senior,
-                cv_id="benchmark", job_id="benchmark",
-                config=config_tech,
-                **config_params
-            )
-            exec_time = (time.time() - start_time) * 1000
-            
-            times.append(exec_time)
-            scores.append(result.get("total_score", 0))
-        
-        avg_time = statistics.mean(times)
-        avg_score = statistics.mean(scores)
-        std_time = statistics.stdev(times) if len(times) > 1 else 0
-        
-        benchmark_results.append({
-            "config": config_name,
-            "avg_time": avg_time,
-            "std_time": std_time,
-            "avg_score": avg_score,
-            "times": times
-        })
-    
-    print(f"\n📊 RÉSULTATS DU BENCHMARK (5 runs par configuration):")
-    print("-" * 80)
-    
-    baseline_time = benchmark_results[0]["avg_time"]
-    
-    for result in benchmark_results:
-        config = result["config"]
-        avg_time = result["avg_time"]
-        std_time = result["std_time"]
-        avg_score = result["avg_score"]
-        
-        # Calcul du surcoût par rapport au baseline
-        overhead = ((avg_time / baseline_time) - 1) * 100 if baseline_time > 0 else 0
-        
-        print(f"\n🔧 {config}:")
-        print(f"   ⏱️  Temps moyen: {avg_time:.1f}ms (±{std_time:.1f}ms)")
-        print(f"   📈 Score moyen: {avg_score:.1f}/100")
-        print(f"   📊 Surcoût: {overhead:+.1f}%")
-        
-        # Détail des temps pour analyse
-        min_time = min(result["times"])
-        max_time = max(result["times"])
-        print(f"   📉 Min/Max: {min_time:.1f}ms / {max_time:.1f}ms")
-    
-    # Résumé final optimisé
-    print("\n\n" + "="*100)
-    print("🎯 RÉSUMÉ DES TESTS OPTIMISÉS")
-    print("="*100)
-    
-    total_optimizations = 4  # sentence matching, buzzword detection, cross-encoder, multilingue
-    
-    print(f"""
-✅ Tests réalisés avec succès (VERSION OPTIMISÉE):
-   1. Candidat excellent (optimisé): {resultat1.get('total_score', 'N/A')}/100
-   2. Détection buzzwords: {len(resultat2.get('buzzword_analysis', {}).get('cv', {}).get('detected', []))} buzzwords détectés
-   3. Analyse skill gaps avancée: {gap_analysis.get('transferable_skills', 0)} compétences transférables
-   4. Support multilingue: {lang_analysis.get('primary_language', 'unknown')} détecté
-   5. Traitement par lot + re-ranking: {len(resultats_lot_optimized)} candidats classés
-   6. Comparaison performances: +{resultat_optimized.get('total_score', 0) - resultat_standard.get('total_score', 0)} points
-   7. Statistiques système: {total_optimizations} optimisations actives
-   8. Tests de robustesse: Toutes fonctionnalités testées
-   9. Benchmark performance: Surcoût moyen analysé
-
-🚀 NOUVELLES FONCTIONNALITÉS INTÉGRÉES:
-   📝 Matching au niveau des phrases (sentence-level)
-   🔄 Re-ranking avec cross-encoder pour précision maximale
-   🌍 Support multilingue natif (FR ↔ EN)
-   ⚠️  Détection de buzzwords et pénalisation
-   🎯 Analyse sémantique des compétences transférables
-   📊 Métriques de performance enrichies
-
-🎖️  Le système de matching optimisé est opérationnel et prêt pour la production!
-    """)
-    
-    print("="*100)
-
-# ================================
-# 13. INTERFACE CLI OPTIMISÉE
-# ================================
-
-def cli_interface_optimized():
-    """Interface CLI optimisée avec nouvelles fonctionnalités"""
-    print("🎯 Interface CLI - Service de Matching CV/Offre OPTIMISÉ")
-    print("=" * 70)
-    
-    while True:
-        print("\nOptions disponibles:")
-        print("1. Test avec données d'exemple (toutes optimisations)")
-        print("2. Test comparatif avec/sans optimisations")
-        print("3. Benchmark de performance")
-        print("4. Analyse des buzzwords sur texte personnalisé")
-        print("5. Test de détection multilingue")
-        print("6. Statistiques système optimisé")
-        print("7. Vider le cache")
-        print("8. Quitter")
-        
-        choice = input("\nVotre choix (1-8): ").strip()
-        
-        if choice == "1":
-            print("\n🧪 Exécution des tests optimisés...")
-            main()
-            
-        elif choice == "2":
-            print("\n⚖️  Test comparatif en cours...")
-            # Code de test comparatif déjà dans main()
-            
-        elif choice == "3":
-            print("\n📊 Benchmark de performance...")
-            # Code de benchmark déjà dans main()
-            
-        elif choice == "4":
-            text = input("\n📝 Entrez le texte à analyser pour buzzwords: ").strip()
-            if text:
-                result = skill_normalizer.analyze_buzzwords(text)
-                print(f"\n🔍 Résultats:")
-                print(f"   Buzzwords détectés: {len(result.get('detected', []))}")
-                print(f"   Densité: {result.get('density', 0)}%")
-                print(f"   Score: {result.get('score', 0)}")
-                print(f"   Pénalité confiance: {result.get('confidence_penalty', 0)*100:.1f}%")
-                if result.get('detected'):
-                    print(f"   Exemples: {', '.join(result['detected'][:5])}")
-            
-        elif choice == "5":
-            text = input("\n🌍 Entrez le texte pour détection multilingue: ").strip()
-            if text:
-                result = detect_language_mixing(text)
-                print(f"\n🔍 Résultats:")
-                print(f"   Langue principale: {result.get('primary_language', 'unknown')}")
-                print(f"   Mélange détecté: {'Oui' if result.get('mixing_detected') else 'Non'}")
-                print(f"   Confiance: {result.get('confidence', 0)*100:.1f}%")
-                
-        elif choice == "6":
-            print("\n📊 Statistiques du système optimisé:")
-            stats = get_system_stats()
-            print(json.dumps(stats, indent=2, ensure_ascii=False))
-            
-        elif choice == "7":
-            embedding_cache.cache.clear()
-            print("\n🗑️  Cache vidé avec succès!")
-            
-        elif choice == "8":
-            print("\n👋 Au revoir!")
-            break
-            
-        else:
-            print("\n❌ Choix invalide, veuillez réessayer.")
-
-def main():
-    """Fonction principale pour les tests optimisés"""
-    # Le code de test optimisé est déjà dans le bloc if __name__ == "__main__"
-    pass
 
 # ================================
 # 14. FONCTIONS EXPORT OPTIMISÉES
@@ -2478,13 +1967,198 @@ def export_matching_report(results: List[Dict], job_data: Dict, filepath: str) -
         return False
 
 # Point d'entrée principal
+# File: ATS_MAR/ai_engine/services/matching_service_enhanced_optimized.py
+# ... (le reste de votre code reste inchangé jusqu'à la fonction main) ...
+
+# Point d'entrée principal
 if __name__ == "__main__":
+    import argparse
+    import sys
+    from pathlib import Path
+
+    # Importation du CVParser (déjà présent, mais pour clarté)
     try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n⏹️  Test interrompu par l'utilisateur")
+        # Assurez-vous que le chemin d'importation est correct pour votre structure de projet
+        # Si cv_parser.py est dans un dossier parent ou un dossier frère, ajustez sys.path si nécessaire.
+        # Dans votre contexte, il semble que 'cv_parser' soit un module directement importable.
+        from cv_parser import CVParser, ParsingResult
+    except ImportError:
+        print("❌ Erreur d'import: cv_parser non trouvé.")
+        print("💡 Assurez-vous que 'cv_parser.py' est accessible dans le PYTHONPATH ou le même répertoire.")
+        sys.exit(1)
+
+    parser = argparse.ArgumentParser(description="Service de Matching CV ↔ Offre d'emploi")
+    parser.add_argument("command", 
+                       choices=["match", "batch-match", "stats"], 
+                       help="Type d'opération à effectuer")
+    parser.add_argument("--cv-path", "-cv", 
+                       help="Chemin vers le fichier PDF du CV (pour 'match')")
+    parser.add_argument("--job-path", "-job", 
+                       help="Chemin vers le fichier PDF de l'offre d'emploi (pour 'match')")
+    parser.add_argument("--cv-dir", 
+                       help="Chemin vers le dossier contenant les CVs PDF (pour 'batch-match')")
+    parser.add_argument("--job-file", 
+                       help="Chemin vers le fichier PDF de l'offre d'emploi unique (pour 'batch-match')")
+    parser.add_argument("--output", "-o", 
+                       help="Fichier ou dossier de sortie pour les résultats")
+    parser.add_argument("--gemma-model", default="gemma3:4b", 
+                       help="Modèle Gemma à utiliser pour le parsing (ex: gemma3:4b)")
+    parser.add_argument("--ollama-url", default="http://localhost:11434", 
+                       help="URL du serveur Ollama pour le parsing")
+    parser.add_argument("--pdf-extraction-method", default="auto", 
+                       choices=["auto", "pypdf", "pdfplumber", "ocr"],
+                       help="Méthode d'extraction PDF pour le parsing")
+    parser.add_argument("--llm-temperature", type=float, default=0.1, 
+                       help="Température LLM pour le parsing")
+    parser.add_argument("--validation-strict", action="store_true", 
+                       help="Validation stricte pour le parsing")
+    parser.add_argument("--log-level", default="INFO", 
+                       choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                       help="Niveau de log")
+    
+    args = parser.parse_args()
+
+    try:
+        # Initialisation du CVParser
+        print("Initialisation du CVParser...")
+        cv_parser_instance = CVParser(
+            gemma_model=args.gemma_model,
+            ollama_url=args.ollama_url,
+            pdf_extraction_method=args.pdf_extraction_method,
+            llm_temperature=args.llm_temperature,
+            validation_strict=args.validation_strict,
+            log_level=args.log_level
+        )
+        print("CVParser initialisé.")
+
+        # Assurez-vous que les modèles de matching sont chargés
+        print("Chargement des modèles de matching (bi-encoder, cross-encoder)...")
+        # L'instance globale 'model_manager' est créée lors de l'importation du module.
+        # Nous pouvons juste vérifier qu'elle est prête.
+        if not model_manager.is_ready():
+            raise RuntimeError("Les modèles de matching n'ont pas pu être chargés.")
+        print("Modèles de matching chargés.")
+
+        if args.command == "match":
+            if not args.cv_path or not args.job_path:
+                print("❌ Les commandes 'match' nécessitent --cv-path et --job-path.")
+                sys.exit(1)
+            
+            print(f"\n--- Démarrage du parsing et matching avancé ---")
+            
+            # 1. Parsing du CV
+            print(f"Parsing du CV depuis : {args.cv_path}")
+            cv_parsing_result = cv_parser_instance.parse_cv_from_pdf(args.cv_path)
+            if not cv_parsing_result.success:
+                print(f"❌ Échec du parsing du CV : {cv_parsing_result.errors}")
+                sys.exit(1)
+            print(f"✅ CV parsé avec succès. Confiance : {cv_parsing_result.confidence:.2f}")
+
+            # 2. Parsing de l'offre d'emploi
+            print(f"Parsing de l'offre d'emploi depuis : {args.job_path}")
+            job_parsing_result = cv_parser_instance.parse_job_from_pdf(args.job_path)
+            if not job_parsing_result.success:
+                print(f"❌ Échec du parsing de l'offre : {job_parsing_result.errors}")
+                sys.exit(1)
+            print(f"✅ Offre parsée avec succès. Confiance : {job_parsing_result.confidence:.2f}")
+            
+            # 3. Exécution du matching avancé
+            print("\n--- Exécution du matching avancé CV ↔ Offre ---")
+            match_result = calculate_match_score_enhanced(
+                cv_json=cv_parsing_result.data,
+                job_json=job_parsing_result.data,
+                cv_id=Path(args.cv_path).stem,
+                job_id=Path(args.job_path).stem,
+                use_sentence_matching=True,
+                analyze_buzzwords=True
+            )
+            
+            # Affichage des résultats
+            display_results_enhanced(match_result)
+
+            if args.output:
+                export_matching_report(
+                    [{"cv_id": Path(args.cv_path).stem, "result": match_result}], 
+                    job_parsing_result.data, 
+                    args.output
+                )
+                print(f"✅ Rapport de matching exporté vers {args.output}")
+
+        elif args.command == "batch-match":
+            if not args.cv_dir or not args.job_file:
+                print("❌ Les commandes 'batch-match' nécessitent --cv-dir et --job-file.")
+                sys.exit(1)
+            
+            print(f"\n--- Démarrage du traitement par lot ---")
+            
+            # 1. Parsing de l'offre d'emploi unique pour le lot
+            print(f"Parsing de l'offre d'emploi pour le lot : {args.job_file}")
+            job_parsing_result = cv_parser_instance.parse_job_from_pdf(args.job_file)
+            if not job_parsing_result.success:
+                print(f"❌ Échec du parsing de l'offre pour le lot : {job_parsing_result.errors}")
+                sys.exit(1)
+            job_data_for_batch = job_parsing_result.data
+            print(f"✅ Offre parsée avec succès pour le lot. Confiance : {job_parsing_result.confidence:.2f}")
+
+            # 2. Collecte et parsing des CVs du répertoire
+            cv_files = list(Path(args.cv_dir).glob("*.pdf"))
+            if not cv_files:
+                print(f"⚠️ Aucun fichier PDF trouvé dans le répertoire des CVs : {args.cv_dir}")
+                sys.exit(0)
+            
+            cv_data_list = []
+            print(f"Parsing de {len(cv_files)} CVs depuis : {args.cv_dir}")
+            for cv_file in cv_files:
+                print(f"  Parsing CV : {cv_file.name}")
+                cv_res = cv_parser_instance.parse_cv_from_pdf(str(cv_file))
+                if cv_res.success:
+                    cv_data_list.append({"id": cv_file.stem, "data": cv_res.data})
+                else:
+                    print(f"  ❌ Échec du parsing de {cv_file.name}: {cv_res.errors}")
+            
+            if not cv_data_list:
+                print("❌ Aucun CV n'a pu être parsé avec succès pour le traitement par lot.")
+                sys.exit(1)
+
+            # 3. Exécution du matching par lot
+            print(f"\n--- Exécution du matching par lot pour {len(cv_data_list)} CVs ---")
+            # batch_matching_enhanced_optimized attend une liste de dictionnaires avec 'id' et les données du CV
+            # Nous devons adapter la structure de cv_data_list pour correspondre à l'attente de batch_matching_enhanced_optimized
+            # La fonction batch_matching_enhanced_optimized attend une liste de dict où chaque dict est un CV JSON complet
+            # et non un dict avec 'id' et 'data'.
+            # Nous allons donc créer une liste de CVs JSON directement.
+            
+            # Adapter la liste des CVs pour batch_matching_enhanced_optimized
+            cv_json_list_for_batch = []
+            for cv_item in cv_data_list:
+                cv_json_data = cv_item["data"]
+                cv_json_data["id"] = cv_item["id"] # Ajouter l'ID directement dans les données du CV si nécessaire pour le logging interne
+                cv_json_list_for_batch.append(cv_json_data)
+
+            batch_results = batch_matching_enhanced_optimized(
+                cv_list=cv_json_list_for_batch,
+                job_data=job_data_for_batch,
+                use_reranking=True,
+                top_k_rerank=10
+            )
+            
+            print("\n--- Résultats du traitement par lot ---")
+            for res in batch_results:
+                score = res.get("result", {}).get("total_score", 0)
+                print(f"CV: {res['cv_id']} - Score: {score}/100 - Rang: {res['rank']}")
+            
+            if args.output:
+                export_matching_report(batch_results, job_data_for_batch, args.output)
+                print(f"✅ Rapport de lot exporté vers {args.output}")
+
+        elif args.command == "stats":
+            print("\n--- Statistiques du système de matching ---")
+            stats = get_system_stats()
+            print(json.dumps(stats, indent=2, ensure_ascii=False))
+            
     except Exception as e:
         print(f"\n\n❌ Erreur critique: {str(e)}")
         logger_instance.logger.error(f"Erreur critique dans main: {str(e)}")
     finally:
         print("\n👋 Fin du programme")
+
