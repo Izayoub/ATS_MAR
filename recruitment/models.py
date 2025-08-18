@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 
+from ATS_MA import settings
+
 User = get_user_model()
 
 
@@ -30,7 +32,7 @@ class JobOffer(models.Model):
     location = models.CharField(max_length=200)
     remote_allowed = models.BooleanField(default=False)
     contract_type = models.CharField(max_length=50, default='CDI')
-    company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE,default='GIANT LINK')
+    company = models.ForeignKey('accounts.Company', on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -50,6 +52,20 @@ class Candidate(models.Model):
         ('M', 'Masculin'),
         ('F', 'Féminin'),
     ]
+    STATUS_CHOICES = [
+        ('new', 'Nouveau'),
+        ('reviewed', 'Examiné'),
+        ('interviewed', 'Entretien'),
+        ('hired', 'Embauché'),
+        ('rejected', 'Rejeté'),
+    ]
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='new',
+        blank=True
+    )
 
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
@@ -73,13 +89,42 @@ class Candidate(models.Model):
     languages = models.JSONField(default=list)
     ai_summary = models.TextField(blank=True)
 
+    global_match_score = models.FloatField(null=True, blank=True)
+    last_matching_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
+    @property
+    def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
+    @property
+    def current_position(self):
+        """Extraire le poste actuel depuis cv_parsed_data"""
+        if self.cv_parsed_data and 'professional_info' in self.cv_parsed_data:
+            return self.cv_parsed_data['professional_info'].get('current_position', 'Candidat')
+        return 'Candidat'
 
+
+class CandidateNote(models.Model):
+    NOTE_TYPES = [
+        ('note', 'Note'),
+        ('interview', 'Entretien'),
+        ('call', 'Appel'),
+        ('email', 'Email'),
+    ]
+
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='notes')
+    content = models.TextField()
+    note_type = models.CharField(max_length=20, choices=NOTE_TYPES, default='note')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # ✅ corrigé
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Note pour {self.candidate.full_name} - {self.created_at.date()}"
 class Application(models.Model):
     STATUS_CHOICES = [
         ('received', 'Reçu'),
@@ -147,3 +192,59 @@ class Interview(models.Model):
     def __str__(self):
         return f"Entretien {self.application.candidate} - {self.scheduled_at}"
 
+
+class MatchingProfile(models.Model):
+    """Profil de préférences pour le matching"""
+    candidate = models.OneToOneField(Candidate, on_delete=models.CASCADE, related_name='matching_profile')
+
+    # Préférences de poste
+    preferred_locations = models.JSONField(default=list)
+    min_salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    preferred_contract_types = models.JSONField(default=list)  # ['CDI', 'CDD', 'Freelance']
+    remote_preference = models.CharField(
+        max_length=20,
+        choices=[
+            ('required', 'Télétravail obligatoire'),
+            ('preferred', 'Télétravail préféré'),
+            ('accepted', 'Télétravail accepté'),
+            ('refused', 'Présentiel uniquement')
+        ],
+        default='accepted'
+    )
+
+    # Métadonnées de matching
+    last_matching_update = models.DateTimeField(auto_now=True)
+    matching_active = models.BooleanField(default=True)
+    notification_frequency = models.CharField(
+        max_length=20,
+        choices=[
+            ('immediate', 'Immédiat'),
+            ('daily', 'Quotidien'),
+            ('weekly', 'Hebdomadaire')
+        ],
+        default='weekly'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class MatchingCache(models.Model):
+    """Cache des résultats de matching pour optimisation"""
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE)
+    job_offer = models.ForeignKey(JobOffer, on_delete=models.CASCADE)
+
+    overall_score = models.FloatField()
+    detailed_scores = models.JSONField(default=dict)
+    recommendation = models.CharField(max_length=20)
+
+    # Métadonnées
+    calculated_at = models.DateTimeField(auto_now_add=True)
+    is_valid = models.BooleanField(default=True)  # Invalider si candidat/job mis à jour
+
+    class Meta:
+        unique_together = ['candidate', 'job_offer']
+        indexes = [
+            models.Index(fields=['overall_score']),
+            models.Index(fields=['calculated_at']),
+        ]

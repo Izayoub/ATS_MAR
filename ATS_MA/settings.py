@@ -29,7 +29,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'accounts',
     'recruitment',
-    'ai_engine',
+    'ai_engine',  # désactivé
     'analytics',
     'corsheaders',
 ]
@@ -144,7 +144,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ATS_MA.wsgi.application'
 
-
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Ou votre broker
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
