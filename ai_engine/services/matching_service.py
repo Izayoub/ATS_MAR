@@ -1,409 +1,521 @@
-import os
-import sys
-import django
+# ai_engine/services/matching_service.py - Version avec imports Django lazy
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 import numpy as np
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
 import re
-from datetime import datetime
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from datetime import datetime, timedelta
 
-# =====================================================
-# Initialisation Django
-# =====================================================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(BASE_DIR)
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ATS_MA.settings")
-
-try:
-    django.setup()
-    from django.conf import settings
-    DJANGO_AVAILABLE = True
-except Exception:
-    DJANGO_AVAILABLE = False
-
-# =====================================================
-# Configuration des logs
-# =====================================================
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# =====================================================
-# Dataclasses
-# =====================================================
 @dataclass
-class MatchResult:
+class FieldMatch:
     """Résultat de matching pour un champ spécifique"""
     field_name: str
     similarity_score: float
     candidate_value: Any
     job_value: Any
-    confidence: str  # 'high', 'medium', 'low'
+    confidence: str
 
 
 @dataclass
-class CandidateJobMatch:
-    """Résultat complet de matching entre un candidat et une offre"""
+class MatchResult:
+    """Résultat complet de matching"""
     candidate_id: int
     job_id: int
     overall_score: float
-    field_matches: List[MatchResult]
-    recommendation: str  # 'excellent', 'good', 'fair', 'poor'
+    field_matches: List[FieldMatch]
+    recommendation: str
+    confidence_level: str
 
 
-# =====================================================
-# Service de Matching
-# =====================================================
 class MatchingService:
-    """Service de matching utilisant Bi-Encoder et Cross-Encoder"""
+    """Service de matching unifié avec cache DB uniquement"""
 
-    def __init__(self,
-                 bi_encoder_model: str = "BAAI/bge-m3",
-                 cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
+    # Configuration des seuils et poids
+    SCORE_THRESHOLDS = {
+        'excellent': 0.8,
+        'good': 0.6,
+        'fair': 0.4,
+        'poor': 0.0
+    }
+
+    FIELD_WEIGHTS = {
+        'technical_skills': 0.35,
+        'soft_skills': 0.15,
+        'experience': 0.30,
+        'education': 0.20
+    }
+
+    CACHE_EXPIRY_HOURS = 24
+
+    def __init__(self):
+        """Initialisation avec singleton pattern pour les modèles ML"""
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        logger.info(f"Utilisation du device: {self.device}")
+        self._bi_encoder = None
+        self._cross_encoder = None
+        logger.info(f"MatchingService initialized on device: {self.device}")
 
-        try:
-            logger.info(f"Chargement du Bi-Encoder: {bi_encoder_model}")
-            self.bi_encoder = SentenceTransformer(bi_encoder_model, device=self.device)
+    def _get_django_imports(self):
+        """Lazy import des modules Django"""
+        from django.core.cache import cache
+        from django.utils import timezone
+        from django.db import transaction
+        from django.db.models import Q, Prefetch
+        from recruitment.models import Candidate, JobOffer, MatchingCache, Application
 
-            logger.info(f"Chargement du Cross-Encoder: {cross_encoder_model}")
-            self.cross_encoder = CrossEncoder(cross_encoder_model, device=self.device)
-
-        except Exception as e:
-            logger.error(f"Erreur lors du chargement des modèles: {e}")
-            raise
-
-        self.field_weights = {
-            'skills': 0.30,
-            'experience': 0.25,
-            'education': 0.20,
-            'location': 0.10,
-            'description': 0.15
+        return {
+            'cache': cache,
+            'timezone': timezone,
+            'transaction': transaction,
+            'Q': Q,
+            'Prefetch': Prefetch,
+            'Candidate': Candidate,
+            'JobOffer': JobOffer,
+            'MatchingCache': MatchingCache,
+            'Application': Application
         }
 
-    # =====================================================
-    # Connexion DB
-    # =====================================================
-    def get_db_connection(self):
-        """Établit une connexion à la base de données"""
-        try:
-            if DJANGO_AVAILABLE and settings.configured and hasattr(settings, "DATABASES"):
-                db_config = settings.DATABASES["default"]
-                conn = psycopg2.connect(
-                    host=db_config.get("HOST", "localhost"),
-                    database=db_config.get("NAME", "ATS"),
-                    user=db_config.get("USER", "ayoub"),
-                    password=db_config.get("PASSWORD", "password"),
-                    port=db_config.get("PORT", "5432"),
-                )
-            else:
-                conn = psycopg2.connect(
-                    host=os.getenv("DB_HOST", "localhost"),
-                    database=os.getenv("DB_NAME", "ATS"),
-                    user=os.getenv("DB_USER", "ayoub"),
-                    password=os.getenv("DB_PASSWORD", "password"),
-                    port=os.getenv("DB_PORT", "5432"),
-                )
-            return conn
-        except Exception as e:
-            logger.error(f"Erreur de connexion à la base de données: {e}")
-            raise
+    @property
+    def bi_encoder(self):
+        """Lazy loading du bi-encoder"""
+        if self._bi_encoder is None:
+            self._bi_encoder = SentenceTransformer("BAAI/bge-m3", device=self.device)
+        return self._bi_encoder
 
-    # =====================================================
-    # Fonctions utilitaires
-    # =====================================================
-    def extract_skills_from_text(self, text: str) -> List[str]:
+    @property
+    def cross_encoder(self):
+        """Lazy loading du cross-encoder"""
+        if self._cross_encoder is None:
+            self._cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", device=self.device)
+        return self._cross_encoder
+
+    def _extract_skills_from_text(self, text: str) -> List[str]:
+        """Extraction unifiée des compétences"""
         if not text:
             return []
+
         skill_patterns = [
-            r'\b(?:Python|Java|JavaScript|React|Angular|Vue|Django|Flask|Node\.js|PHP|Ruby|Go|Rust|C\+\+|C#|Swift|Kotlin|SQL|MongoDB|PostgreSQL|MySQL|Redis|Docker|Kubernetes|AWS|Azure|GCP|Git|Linux|Windows|MacOS|HTML|CSS|TypeScript|jQuery|Bootstrap|Sass|REST|GraphQL|API|Microservices|DevOps|CI/CD|Jenkins|GitLab|GitHub|Jira|Slack|Figma|Photoshop|Illustrator|Sketch|Adobe|Office|Excel|PowerPoint|Word|Project|Scrum|Agile|Kanban|Machine Learning|AI|Data Science|TensorFlow|PyTorch|Pandas|NumPy|Matplotlib|Tableau|Power BI|R|SPSS|Statistics|Analytics)\b'
+            r'\b(?:Python|Java|JavaScript|TypeScript|React|Angular|Vue\.?js|Django|Flask|Node\.?js)\b',
+            r'\b(?:SQL|MySQL|PostgreSQL|MongoDB|Redis|Docker|Kubernetes|AWS|Azure|GCP)\b',
+            r'\b(?:Git|Linux|REST|GraphQL|API|Microservices|Agile|Scrum)\b',
         ]
+
         skills = []
         for pattern in skill_patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
-            skills.extend([m.lower() for m in matches])
-        return list(set(skills))
+            skills.extend([m.lower().replace('.', '') for m in matches])
 
-    def normalize_experience_level(self, level: str) -> int:
-        mapping = {
-            'junior': 1, 'entry': 1, 'débutant': 1,
-            'mid': 3, 'middle': 3, 'intermédiaire': 3,
-            'senior': 5, 'lead': 7,
-            'principal': 10, 'expert': 10
-        }
-        return mapping.get(level.lower().strip(), 2)
+        return list(dict.fromkeys(skills))[:20]
 
-    # =====================================================
-    # Fonctions de Similarité (skills, exp, edu, etc.)
-    # =====================================================
-    def calculate_skills_similarity(self, candidate_skills: List[str], job_requirements: str) -> MatchResult:
+    def _calculate_technical_skills_match(self, candidate_skills: List[str],
+                                          job_requirements: str) -> FieldMatch:
+        """Calcul unifié de matching des compétences techniques"""
         if not candidate_skills or not job_requirements:
-            return MatchResult("skills", 0.0, candidate_skills, job_requirements, "low")
+            return FieldMatch("technical_skills", 0.0, candidate_skills, [], "low")
 
-        required_skills = self.extract_skills_from_text(job_requirements)
+        required_skills = self._extract_skills_from_text(job_requirements)
         if not required_skills:
-            return MatchResult("skills", 0.0, candidate_skills, required_skills, "low")
+            return FieldMatch("technical_skills", 0.0, candidate_skills, required_skills, "low")
 
-        candidate_text = " ".join(candidate_skills)
-        required_text = " ".join(required_skills)
+        # Normalisation
+        candidate_skills_clean = [skill.lower().strip() for skill in candidate_skills if skill]
+        required_skills_clean = [skill.lower().strip() for skill in required_skills if skill]
 
-        embeddings = self.bi_encoder.encode([candidate_text, required_text])
-        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+        # Matching exact
+        exact_matches = set(candidate_skills_clean) & set(required_skills_clean)
+        exact_score = len(exact_matches) / len(required_skills_clean) if required_skills_clean else 0
 
-        cross_score = self.cross_encoder.predict([(candidate_text, required_text)])[0]
-        final_score = (similarity * 0.7 + cross_score * 0.3)
+        # Similarité sémantique
+        try:
+            candidate_text = " ".join(candidate_skills_clean)
+            required_text = " ".join(required_skills_clean)
 
-        confidence = "high" if final_score >= 0.7 else "medium" if final_score >= 0.5 else "low"
-        return MatchResult("skills", final_score, candidate_skills, required_skills, confidence)
+            embeddings = self.bi_encoder.encode([candidate_text, required_text])
+            semantic_score = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
 
-    def calculate_experience_similarity(self, candidate_years: int, job_level: str) -> MatchResult:
-        required_years = self.normalize_experience_level(job_level)
-        if candidate_years == 0 or required_years == 0:
-            return MatchResult("experience", 0.0, candidate_years, required_years, "low")
+            # Score final pondéré
+            final_score = exact_score * 0.6 + semantic_score * 0.4
 
-        diff = abs(candidate_years - required_years)
-        if diff == 0:
-            score = 1.0
-        elif diff <= 1:
-            score = 0.8
-        elif diff <= 2:
-            score = 0.6
-        elif diff <= 3:
-            score = 0.4
-        else:
-            score = 0.2
+        except Exception as e:
+            logger.warning(f"Error calculating technical skills similarity: {e}")
+            final_score = exact_score
 
-        if candidate_years > required_years:
-            score = min(1.0, score + 0.1)
-
-        confidence = "high" if score >= 0.7 else "medium" if score >= 0.5 else "low"
-        return MatchResult("experience", score, candidate_years, required_years, confidence)
-
-    def calculate_education_similarity(self, candidate_education: str, job_description: str) -> MatchResult:
-        if not candidate_education or not job_description:
-            return MatchResult("education", 0.0, candidate_education, "", "low")
-
-        education_keywords = re.findall(
-            r'\b(?:bac|licence|master|doctorat|phd|ingénieur|dut|bts|bachelor|degree)\b',
-            job_description.lower()
+        # Confidence
+        confidence = (
+            "high" if len(exact_matches) >= 3 and final_score >= 0.7
+            else "medium" if len(exact_matches) >= 1 and final_score >= 0.5
+            else "low"
         )
+
+        return FieldMatch("technical_skills", final_score,
+                          candidate_skills[:10], required_skills[:10], confidence)
+
+    def _calculate_soft_skills_match(self, candidate_soft_skills: List[str],
+                                     job_description: str) -> FieldMatch:
+        """Calcul unifié de matching des soft skills"""
+        if not candidate_soft_skills:
+            return FieldMatch("soft_skills", 0.0, candidate_soft_skills, [], "low")
+
+        soft_keywords = [
+            'leadership', 'communication', 'teamwork', 'problem solving',
+            'analytical', 'creative', 'adaptability', 'time management'
+        ]
+
+        job_text = (job_description or "").lower()
+        required_soft = [skill for skill in soft_keywords if skill in job_text]
+
+        if not required_soft:
+            return FieldMatch("soft_skills", 0.6, candidate_soft_skills, "Non spécifié", "medium")
+
+        # Similarité sémantique
+        try:
+            candidate_text = " ".join([skill.lower().strip() for skill in candidate_soft_skills])
+            required_text = " ".join(required_soft)
+
+            embeddings = self.bi_encoder.encode([candidate_text, required_text])
+            similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+        except Exception:
+            similarity = 0.5
+
+        confidence = "high" if similarity >= 0.7 else "medium" if similarity >= 0.5 else "low"
+
+        return FieldMatch("soft_skills", similarity, candidate_soft_skills,
+                          required_soft, confidence)
+
+    def _calculate_experience_match(self, candidate_years: int, job_level: str) -> FieldMatch:
+        """Calcul unifié de matching d'expérience"""
+        level_mapping = {
+            'junior': {'years': 1, 'range': (0, 2)},
+            'middle': {'years': 3, 'range': (2, 5)},
+            'senior': {'years': 6, 'range': (5, 15)}
+        }
+
+        job_level_clean = job_level.lower().strip()
+        level_info = level_mapping.get(job_level_clean, {'years': 2, 'range': (0, 5)})
+
+        required_years = level_info['years']
+        min_range, max_range = level_info['range']
+
+        if candidate_years == 0:
+            return FieldMatch("experience", 0.0, candidate_years,
+                              f"{job_level} ({required_years} ans)", "low")
+
+        # Score basé sur la fourchette
+        if min_range <= candidate_years <= max_range:
+            score = 1.0
+            confidence = "high"
+        elif candidate_years < min_range:
+            diff = min_range - candidate_years
+            score = max(0.3, 1.0 - (diff * 0.2))
+            confidence = "medium" if diff <= 1 else "low"
+        else:
+            diff = candidate_years - max_range
+            score = max(0.6, 1.0 - (diff * 0.1))
+            confidence = "medium" if diff <= 2 else "low"
+
+        return FieldMatch("experience", score, f"{candidate_years} ans",
+                          f"{job_level} ({required_years} ans)", confidence)
+
+    def _calculate_education_match(self, candidate_education: str, job_description: str) -> FieldMatch:
+        """Calcul unifié de matching éducation"""
+        if not candidate_education:
+            return FieldMatch("education", 0.0, candidate_education, "", "low")
+
+        education_hierarchy = {
+            'doctorat': 8, 'phd': 8, 'master': 5, 'ingénieur': 5,
+            'licence': 3, 'bachelor': 3, 'bts': 2, 'dut': 2, 'bac': 0
+        }
+
+        # Niveau candidat
+        candidate_level = 0
+        candidate_lower = candidate_education.lower()
+        for edu, level in education_hierarchy.items():
+            if edu in candidate_lower:
+                candidate_level = max(candidate_level, level)
+
+        # Niveau requis
+        job_text = (job_description or "").lower()
+        required_level = 0
+        education_keywords = []
+
+        for edu, level in education_hierarchy.items():
+            if edu in job_text:
+                required_level = max(required_level, level)
+                education_keywords.append(edu)
+
         if not education_keywords:
-            return MatchResult("education", 0.5, candidate_education, "Non spécifié", "medium")
+            return FieldMatch("education", 0.6, candidate_education, "Non spécifié", "medium")
 
-        embeddings = self.bi_encoder.encode([candidate_education.lower(), " ".join(education_keywords)])
-        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+        # Score
+        if candidate_level == required_level:
+            score = 1.0
+            confidence = "high"
+        elif candidate_level > required_level:
+            diff = candidate_level - required_level
+            score = min(1.0, 0.8 + (diff * 0.05))
+            confidence = "medium"
+        else:
+            diff = required_level - candidate_level
+            score = max(0.2, 1.0 - (diff * 0.15))
+            confidence = "medium" if diff <= 2 else "low"
 
-        cross_score = self.cross_encoder.predict([(candidate_education.lower(), " ".join(education_keywords))])[0]
-        final_score = (similarity * 0.6 + cross_score * 0.4)
+        return FieldMatch("education", score, candidate_education, education_keywords, confidence)
 
-        confidence = "high" if final_score >= 0.7 else "medium" if final_score >= 0.5 else "low"
-        return MatchResult("education", final_score, candidate_education, education_keywords, confidence)
-
-    def calculate_location_similarity(self, candidate_city: str, job_location: str, remote_allowed: bool) -> MatchResult:
-        if remote_allowed:
-            return MatchResult("location", 1.0, candidate_city, f"{job_location} (Remote)", "high")
-
-        if not candidate_city or not job_location:
-            return MatchResult("location", 0.0, candidate_city, job_location, "low")
-
-        cand, job = candidate_city.lower().strip(), job_location.lower().strip()
-        if cand == job:
-            return MatchResult("location", 1.0, candidate_city, job_location, "high")
-
-        embeddings = self.bi_encoder.encode([cand, job])
-        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
-
-        confidence = "high" if similarity >= 0.8 else "medium" if similarity >= 0.6 else "low"
-        return MatchResult("location", similarity, candidate_city, job_location, confidence)
-
-    def calculate_description_similarity(self, candidate_summary: str, job_description: str) -> MatchResult:
-        if not candidate_summary or not job_description:
-            return MatchResult("description", 0.0, candidate_summary, job_description, "low")
-
-        embeddings = self.bi_encoder.encode([candidate_summary, job_description])
-        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
-
-        cross_score = self.cross_encoder.predict([(candidate_summary, job_description)])[0]
-        final_score = (similarity * 0.6 + cross_score * 0.4)
-
-        confidence = "high" if final_score >= 0.7 else "medium" if final_score >= 0.5 else "low"
-        return MatchResult("description", final_score, candidate_summary[:100] + "...", job_description[:100] + "...", confidence)
-
-    # =====================================================
-    # Matching principal
-    # =====================================================
-    def match_candidate_to_job(self, candidate_data: Dict, job_data: Dict) -> CandidateJobMatch:
-        logger.info(f"Matching candidat {candidate_data['id']} avec job {job_data['id']}")
+    def match_candidate_to_job(self, candidate, job_offer) -> MatchResult:
+        """Méthode principale de matching unifiée"""
+        logger.info(f"Matching candidate {candidate.id} with job {job_offer.id}")
 
         field_matches = []
-        candidate_skills = candidate_data.get("skills_extracted", [])
-        if isinstance(candidate_skills, str):
-            candidate_skills = json.loads(candidate_skills) if candidate_skills else []
 
-        field_matches.append(self.calculate_skills_similarity(candidate_skills, job_data.get("requirements", "")))
-        field_matches.append(self.calculate_experience_similarity(candidate_data.get("experience_years", 0), job_data.get("experience_level", "")))
-        field_matches.append(self.calculate_education_similarity(candidate_data.get("education_level", ""), job_data.get("description", "") + " " + job_data.get("requirements", "")))
-        field_matches.append(self.calculate_location_similarity(candidate_data.get("city", ""), job_data.get("location", ""), job_data.get("remote_allowed", False)))
-        field_matches.append(self.calculate_description_similarity(candidate_data.get("ai_summary", ""), job_data.get("description", "")))
+        # Compétences techniques
+        technical_skills = candidate.technical_skills or []
+        if isinstance(technical_skills, str):
+            technical_skills = json.loads(technical_skills) if technical_skills else []
 
-        overall_score = sum([m.similarity_score * self.field_weights.get(m.field_name, 0.1) for m in field_matches])
-        recommendation = "excellent" if overall_score >= 0.8 else "good" if overall_score >= 0.6 else "fair" if overall_score >= 0.4 else "poor"
+        field_matches.append(
+            self._calculate_technical_skills_match(technical_skills, job_offer.requirements or "")
+        )
 
-        return CandidateJobMatch(candidate_id=candidate_data["id"], job_id=job_data["id"], overall_score=overall_score, field_matches=field_matches, recommendation=recommendation)
+        # Compétences comportementales
+        soft_skills = candidate.soft_skills or []
+        if isinstance(soft_skills, str):
+            soft_skills = json.loads(soft_skills) if soft_skills else []
 
-    # =====================================================
-    # Accès DB
-    # =====================================================
-    def get_candidates_from_db(self, limit: Optional[int] = None) -> List[Dict]:
-        conn = self.get_db_connection()
-        try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                query = """
-                SELECT id, first_name, last_name, email, phone, gender, birth_date,
-                       address, city, linkedin_url, cv_text, cv_parsed_data,
-                       skills_extracted, experience_years, education_level,
-                       languages, ai_summary, created_at, updated_at
-                FROM recruitment_candidate
-                """
-                if limit:
-                    query += f" LIMIT {limit}"
-                cursor.execute(query)
-                return [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
+        field_matches.append(
+            self._calculate_soft_skills_match(soft_skills, job_offer.description or "")
+        )
 
-    def get_job_offers_from_db(self, limit: Optional[int] = None) -> List[Dict]:
-        conn = self.get_db_connection()
-        try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                query = """
-                SELECT j.id, j.title, j.description, j.requirements, j.benefits,
-                       j.status, j.experience_level, j.salary_min, j.salary_max,
-                       j.location, j.remote_allowed, j.contract_type, j.deadline,
-                       j.company_id, c.name as company_name
-                FROM recruitment_joboffer j
-                JOIN accounts_company c ON j.company_id = c.id
-                WHERE j.status = 'active'
-                """
-                if limit:
-                    query += f" LIMIT {limit}"
-                cursor.execute(query)
-                return [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
+        # Expérience
+        field_matches.append(
+            self._calculate_experience_match(
+                candidate.experience_years or 0,
+                job_offer.experience_level or ""
+            )
+        )
 
-    # =====================================================
-    # Recherche de match
-    # =====================================================
-    def find_best_matches(self, candidate_id: Optional[int] = None, job_id: Optional[int] = None, top_n: int = 10) -> List[CandidateJobMatch]:
-        matches = []
+        # Éducation
+        field_matches.append(
+            self._calculate_education_match(
+                candidate.education_level or "",
+                f"{job_offer.description or ''} {job_offer.requirements or ''}"
+            )
+        )
 
-        if candidate_id:
-            conn = self.get_db_connection()
-            try:
-                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                    cursor.execute("SELECT * FROM recruitment_candidate WHERE id = %s", (candidate_id,))
-                    candidate = dict(cursor.fetchone())
-                jobs = self.get_job_offers_from_db()
-                for job in jobs:
-                    matches.append(self.match_candidate_to_job(candidate, job))
-            finally:
-                conn.close()
+        # Score global
+        overall_score = sum([
+            match.similarity_score * self.FIELD_WEIGHTS.get(match.field_name, 0.1)
+            for match in field_matches
+        ])
 
-        elif job_id:
-            conn = self.get_db_connection()
-            try:
-                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                    cursor.execute("""
-                        SELECT j.*, c.name as company_name 
-                        FROM recruitment_joboffer j
-                        JOIN accounts_company c ON j.company_id = c.id
-                        WHERE j.id = %s
-                    """, (job_id,))
-                    job = dict(cursor.fetchone())
-                candidates = self.get_candidates_from_db()
-                for candidate in candidates:
-                    matches.append(self.match_candidate_to_job(candidate, job))
-            finally:
-                conn.close()
+        # Recommandation
+        recommendation = next(
+            (level for level, threshold in sorted(self.SCORE_THRESHOLDS.items(),
+                                                  key=lambda x: x[1], reverse=True)
+             if overall_score >= threshold),
+            "poor"
+        )
+
+        # Confidence globale
+        high_confidence_count = sum(1 for match in field_matches if match.confidence == "high")
+        if high_confidence_count >= 3:
+            confidence_level = "high"
+        elif high_confidence_count >= 1:
+            confidence_level = "medium"
         else:
-            candidates = self.get_candidates_from_db(limit=50)
-            jobs = self.get_job_offers_from_db(limit=20)
-            for cand in candidates:
-                for job in jobs:
-                    matches.append(self.match_candidate_to_job(cand, job))
+            confidence_level = "low"
 
+        return MatchResult(
+            candidate_id=candidate.id,
+            job_id=job_offer.id,
+            overall_score=overall_score,
+            field_matches=field_matches,
+            recommendation=recommendation,
+            confidence_level=confidence_level
+        )
+
+    def get_cached_match(self, candidate_id: int, job_id: int) -> Optional[MatchResult]:
+        """Récupération depuis le cache DB uniquement"""
+        django = self._get_django_imports()
+
+        try:
+            cached = django['MatchingCache'].objects.select_related('candidate', 'job_offer').get(
+                candidate_id=candidate_id,
+                job_offer_id=job_id,
+                is_valid=True,
+                calculated_at__gt=django['timezone'].now() - timedelta(hours=self.CACHE_EXPIRY_HOURS)
+            )
+
+            # Reconstruction du MatchResult
+            field_matches = []
+            for field_name, data in cached.detailed_scores.items():
+                field_matches.append(FieldMatch(
+                    field_name=field_name,
+                    similarity_score=data['score'],
+                    candidate_value=data['candidate_value'],
+                    job_value=data['job_value'],
+                    confidence=data['confidence']
+                ))
+
+            return MatchResult(
+                candidate_id=cached.candidate_id,
+                job_id=cached.job_offer_id,
+                overall_score=cached.overall_score,
+                field_matches=field_matches,
+                recommendation=cached.recommendation,
+                confidence_level=cached.detailed_scores.get('confidence_level', 'medium')
+            )
+
+        except django['MatchingCache'].DoesNotExist:
+            return None
+
+    def save_match_to_cache(self, match: MatchResult):
+        """Sauvegarde dans le cache DB uniquement"""
+        django = self._get_django_imports()
+
+        detailed_scores = {}
+        for field_match in match.field_matches:
+            detailed_scores[field_match.field_name] = {
+                'score': field_match.similarity_score,
+                'confidence': field_match.confidence,
+                'candidate_value': str(field_match.candidate_value)[:500],
+                'job_value': str(field_match.job_value)[:500]
+            }
+
+        detailed_scores['confidence_level'] = match.confidence_level
+
+        with django['transaction'].atomic():
+            django['MatchingCache'].objects.update_or_create(
+                candidate_id=match.candidate_id,
+                job_offer_id=match.job_id,
+                defaults={
+                    'overall_score': match.overall_score,
+                    'detailed_scores': detailed_scores,
+                    'recommendation': match.recommendation,
+                    'calculated_at': django['timezone'].now(),
+                    'is_valid': True
+                }
+            )
+
+    def find_matches_for_candidate(self, candidate_id: int,
+                                   top_n: int = 10,
+                                   min_score: float = 0.0) -> List[MatchResult]:
+        """Trouve les meilleurs jobs pour un candidat"""
+        django = self._get_django_imports()
+
+        try:
+            candidate = django['Candidate'].objects.get(id=candidate_id)
+        except django['Candidate'].DoesNotExist:
+            logger.error(f"Candidate {candidate_id} not found")
+            return []
+
+        # Jobs actifs
+        active_jobs = django['JobOffer'].objects.filter(
+            status='active'
+        ).select_related('company').prefetch_related(
+            django['Prefetch']('matchingcache_set',
+                               queryset=django['MatchingCache'].objects.filter(candidate_id=candidate_id))
+        )
+
+        matches = []
+        for job in active_jobs:
+            # Vérifier le cache
+            cached_match = self.get_cached_match(candidate_id, job.id)
+
+            if cached_match:
+                matches.append(cached_match)
+            else:
+                # Calculer et sauvegarder
+                match = self.match_candidate_to_job(candidate, job)
+                self.save_match_to_cache(match)
+                matches.append(match)
+
+        # Filtrer et trier
+        matches = [m for m in matches if m.overall_score >= min_score]
         matches.sort(key=lambda x: x.overall_score, reverse=True)
+
         return matches[:top_n]
 
-    def generate_match_report(self, match: CandidateJobMatch) -> str:
-        report = f"""
-=== RAPPORT DE MATCHING ===
-Candidat ID: {match.candidate_id}
-Job ID: {match.job_id}
-Score Global: {match.overall_score:.3f}
-Recommandation: {match.recommendation.upper()}
+    def find_matches_for_job(self, job_id: int,
+                             top_n: int = 10,
+                             min_score: float = 0.0) -> List[MatchResult]:
+        """Trouve les meilleurs candidats pour un job"""
+        django = self._get_django_imports()
 
-=== DÉTAIL PAR CHAMP ===
-"""
-        for field_match in match.field_matches:
-            report += f"""
-{field_match.field_name.upper()}:
-  Score: {field_match.similarity_score:.3f}
-  Confiance: {field_match.confidence}
-  Candidat: {field_match.candidate_value}
-  Job: {field_match.job_value}
-"""
-        return report
+        try:
+            job = django['JobOffer'].objects.select_related('company').get(id=job_id)
+        except django['JobOffer'].DoesNotExist:
+            logger.error(f"Job {job_id} not found")
+            return []
+
+        # Candidats actifs
+        active_candidates = django['Candidate'].objects.filter(
+            status__in=['active', 'seeking']
+        ).prefetch_related(
+            django['Prefetch']('matchingcache_set',
+                               queryset=django['MatchingCache'].objects.filter(job_offer_id=job_id))
+        )
+
+        matches = []
+        for candidate in active_candidates:
+            # Vérifier le cache
+            cached_match = self.get_cached_match(candidate.id, job_id)
+
+            if cached_match:
+                matches.append(cached_match)
+            else:
+                # Calculer et sauvegarder
+                match = self.match_candidate_to_job(candidate, job)
+                self.save_match_to_cache(match)
+                matches.append(match)
+
+        # Filtrer et trier
+        matches = [m for m in matches if m.overall_score >= min_score]
+        matches.sort(key=lambda x: x.overall_score, reverse=True)
+
+        return matches[:top_n]
+
+    def quick_match(self, candidate_id: int, job_id: int) -> Optional[MatchResult]:
+        """Match rapide entre un candidat et un job"""
+        django = self._get_django_imports()
+
+        # Vérifier le cache d'abord
+        cached_match = self.get_cached_match(candidate_id, job_id)
+        if cached_match:
+            return cached_match
+
+        try:
+            candidate = django['Candidate'].objects.get(id=candidate_id)
+            job = django['JobOffer'].objects.select_related('company').get(id=job_id)
+
+            match = self.match_candidate_to_job(candidate, job)
+            self.save_match_to_cache(match)
+
+            return match
+
+        except (django['Candidate'].DoesNotExist, django['JobOffer'].DoesNotExist) as e:
+            logger.error(f"Entity not found for quick match: {e}")
+            return None
+
+    def invalidate_cache(self, candidate_id: Optional[int] = None,
+                         job_id: Optional[int] = None) -> int:
+        """Invalide le cache selon les paramètres"""
+        django = self._get_django_imports()
+
+        queryset = django['MatchingCache'].objects.all()
+
+        if candidate_id:
+            queryset = queryset.filter(candidate_id=candidate_id)
+        if job_id:
+            queryset = queryset.filter(job_offer_id=job_id)
+
+        return queryset.update(is_valid=False)
 
 
-# =====================================================
-# Fonction de test
-# =====================================================
-def run_matching_with_database():
-    try:
-        matching_service = MatchingService()
-
-        logger.info("=== TEST DE CONNEXION À LA BASE DE DONNÉES ===")
-
-        candidates = matching_service.get_candidates_from_db(limit=5)
-        logger.info(f"Trouvé {len(candidates)} candidats")
-
-        jobs = matching_service.get_job_offers_from_db(limit=5)
-        logger.info(f"Trouvé {len(jobs)} offres d'emploi")
-
-        if not candidates or not jobs:
-            logger.error("Pas assez de données pour le test.")
-            return
-
-        logger.info(f"=== MATCHING POUR LE CANDIDAT {candidates[0]['id']} ===")
-        matches = matching_service.find_best_matches(candidate_id=candidates[0]['id'], top_n=3)
-        for i, match in enumerate(matches, 1):
-            print(f"\n=== MATCH #{i} ===")
-            print(matching_service.generate_match_report(match))
-
-        logger.info(f"=== MATCHING POUR L'OFFRE {jobs[0]['id']} ===")
-        matches = matching_service.find_best_matches(job_id=jobs[0]['id'], top_n=3)
-        for i, match in enumerate(matches, 1):
-            print(f"\n=== CANDIDAT MATCH #{i} ===")
-            print(matching_service.generate_match_report(match))
-
-        logger.info("✓ Test terminé avec succès!")
-
-    except Exception as e:
-        logger.error(f"✗ Erreur durant le test: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-if __name__ == "__main__":
-    run_matching_with_database()
+# Instance globale du service (Singleton)
+matching_service = MatchingService()

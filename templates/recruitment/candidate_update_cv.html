@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mettre à jour CV - {{ candidate.first_name }} {{ candidate.last_name }}</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="mb-0">🔄 Mettre à jour le CV</h3>
+                        <small class="text-muted">
+                            Candidat: <strong>{{ candidate.first_name }} {{ candidate.last_name }}</strong>
+                        </small>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- Messages Django -->
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+
+                        <!-- Info candidat actuel -->
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h6>👤 Informations actuelles</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>Nom:</strong> {{ candidate.last_name }}<br>
+                                        <strong>Prénom:</strong> {{ candidate.first_name }}<br>
+                                        <strong>Email:</strong> {{ candidate.email|default:"Non renseigné" }}<br>
+                                        <strong>Téléphone:</strong> {{ candidate.phone|default:"Non renseigné" }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Ville:</strong> {{ candidate.city|default:"Non renseigné" }}<br>
+                                        <strong>Expérience:</strong> {{ candidate.experience_years|default:0 }} ans<br>
+                                        <strong>Formation:</strong> {{ candidate.education_level|default:"Non spécifié" }}<br>
+                                        <strong>CV actuel:</strong> 
+                                        {% if candidate.cv_file %}
+                                            <a href="{{ candidate.cv_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary">📄 Voir</a>
+                                        {% else %}
+                                            <span class="text-muted">Aucun</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                {% if candidate.ai_summary %}
+                                <hr>
+                                <strong>Résumé IA:</strong>
+                                <p class="text-muted">{{ candidate.ai_summary }}</p>
+                                {% endif %}
+                                
+                                {% if candidate.skills_extracted %}
+                                <hr>
+                                <strong>Compétences détectées:</strong><br>
+                                {% for skill in candidate.skills_extracted %}
+                                    <span class="badge bg-secondary me-1">{{ skill }}</span>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Formulaire mise à jour -->
+                        <div class="alert alert-info">
+                            <h6>📋 Instructions:</h6>
+                            <ul class="mb-0">
+                                <li>Uploadez un nouveau CV pour mettre à jour les informations</li>
+                                <li>Les données existantes seront mises à jour ou complétées</li>
+                                <li>L'ancien CV sera remplacé par le nouveau</li>
+                            </ul>
+                        </div>
+
+                        <form method="post" enctype="multipart/form-data" id="updateCvForm">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="cv_file" class="form-label">Nouveau fichier CV (PDF)</label>
+                                <input type="file" class="form-control" id="cv_file" name="cv_file" accept=".pdf" required>
+                                <div class="form-text">Le nouveau CV remplacera l'ancien et mettra à jour les informations</div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-warning" id="submitBtn">
+                                    <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span>
+                                    🔄 Mettre à jour avec le nouveau CV
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Données parsées existantes -->
+                        {% if candidate.cv_parsed_data %}
+                        <hr class="my-4">
+                        <div class="accordion" id="parsedDataAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                            data-bs-target="#parsedDataCollapse">
+                                        🔍 Données techniques extraites (avancé)
+                                    </button>
+                                </h2>
+                                <div id="parsedDataCollapse" class="accordion-collapse collapse">
+                                    <div class="accordion-body">
+                                        <pre class="bg-light p-3"><code>{{ candidate.cv_parsed_data|pprint }}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-footer">
+                        <div class="d-flex justify-content-between">
+                            <a href="/candidate/{{ candidate.id }}/" class="btn btn-outline-secondary">
+                                ← Retour au profil
+                            </a>
+                            <div>
+                                <button type="button" class="btn btn-outline-info" id="viewParsedDataBtn">
+                                    📊 Voir données extraites
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal données parsées -->
+    <div class="modal fade" id="parsedDataModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📊 Données extraites du CV</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="parsedDataModalBody">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status"></div>
+                        <p>Chargement des données...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Gestion soumission formulaire
+        document.getElementById('updateCvForm').addEventListener('submit', function(e) {
+            const submitBtn = document.getElementById('submitBtn');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            submitBtn.disabled = true;
+            loadingSpinner.classList.remove('d-none');
+        });
+
+        // Gestion affichage données parsées
+        document.getElementById('viewParsedDataBtn').addEventListener('click', function() {
+            const modal = new bootstrap.Modal(document.getElementById('parsedDataModal'));
+            const modalBody = document.getElementById('parsedDataModalBody');
+            
+            modal.show();
+            
+            // Charger les données via AJAX
+            fetch("{% url 'candidate_parsed_data_view' candidate.id %}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    modalBody.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>📋 Informations générales</h6>
+                                <p><strong>Nom:</strong> ${data.candidate_name}</p>
+                                <p><strong>Expérience:</strong> ${data.experience_years} ans</p>
+                                <p><strong>Formation:</strong> ${data.education_level}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>🎯 Compétences</h6>
+                                ${data.skills_extracted ? 
+                                    data.skills_extracted.map(skill => `<span class="badge bg-secondary me-1">${skill}</span>`).join('') : 
+                                    '<p class="text-muted">Aucune compétence détectée</p>'
+                                }
+                            </div>
+                        </div>
+                        
+                        ${data.languages && data.languages.length > 0 ? `
+                        <hr>
+                        <h6>🌍 Langues</h6>
+                        ${data.languages.map(lang => `<span class="badge bg-info me-1">${lang.language} (${lang.level})</span>`).join('')}
+                        ` : ''}
+                        
+                        ${data.ai_summary ? `
+                        <hr>
+                        <h6>🤖 Résumé IA</h6>
+                        <p class="text-muted">${data.ai_summary}</p>
+                        ` : ''}
+                        
+                        <hr>
+                        <h6>🔧 Données techniques complètes</h6>
+                        <pre class="bg-light p-3 small" style="max-height: 300px; overflow-y: auto;"><code>${JSON.stringify(data.parsed_data, null, 2)}</code></pre>
+                    `;
+                } else {
+                    modalBody.innerHTML = `
+                        <div class="alert alert-danger">
+                            <h6>❌ Erreur</h6>
+                            <p>${data.error}</p>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                modalBody.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6>❌ Erreur réseau</h6>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>

@@ -5,12 +5,11 @@ from django.views.generic import CreateView
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate
-
 from rest_framework.authtoken.models import Token
-
+from rest_framework.decorators import api_view, permission_classes
 
 from .forms import CustomAuthenticationForm, CustomUserCreationForm
 from .models import Company
@@ -22,11 +21,13 @@ User = get_user_model()
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
+    permission_classes = [IsAuthenticated]
 
 
 class RegisterView(APIView):
@@ -49,28 +50,31 @@ class RegisterView(APIView):
 
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
+
         if serializer.is_valid():
-            user = serializer.save()
+            try:
+                user = serializer.save()
+                token, created = Token.objects.get_or_create(user=user)
+
+                return Response({
+                    'token': token.key,
+                    'user': UserSerializer(user).data
+                }, status=status.HTTP_201_CREATED)
+
+            except Exception as e:
+                return Response({
+                    'errors': {
+                        'general': [str(e)]
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
             return Response({
-                "success": True,
-                "message": "Compte créé avec succès!",
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "role": user.get_role_display(),
-                    "company": user.company.name if user.company else None
-                }
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            "success": False,
-            "errors": serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CustomLoginView(APIView):
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         username = request.data.get('username')
@@ -94,28 +98,26 @@ class CustomLoginView(APIView):
                 'error': 'Invalid credentials'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
+
 class CustomLogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         try:
+            # Delete the token
             request.user.auth_token.delete()
-        except:
-            pass
-        return Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
-
-
-class RegisterView(APIView):
-    permission_classes = []
-
-    def post(self, request):
-        serializer = UserRegistrationSerializer(data=request.data)
-
-        if serializer.is_valid():
-            user = serializer.save()
-            token, created = Token.objects.get_or_create(user=user)
-
             return Response({
-                'token': token.key,
-                'user': UserSerializer(user).data
-            }, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                'message': 'Logged out successfully'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'error': 'Logout failed'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_profile(request):
+    """Get current user profile"""
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
