@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { useNavigate } from "react-router-dom"
+import Layout from "../components/Layout/Layout"
 import { Users, Briefcase, Clock, Brain, Target, Calendar, BarChart3, ArrowUp, ArrowDown, Plus } from "lucide-react"
 
 interface DashboardStats {
@@ -140,17 +141,19 @@ const DashboardPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-200 border-t-purple-600"></div>
+        </div>
+      </Layout>
     )
   }
 
   return (
-    <div className="p-6">
+    <Layout>
       {/* Welcome Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Bonjour, {user?.username} 👋</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Bonjour, {user?.username || "Utilisateur"} 👋</h1>
         <p className="text-gray-600 dark:text-gray-400">Voici un aperçu de votre activité de recrutement</p>
       </div>
 
@@ -159,14 +162,14 @@ const DashboardPage: React.FC = () => {
         {statCards.map((card) => (
           <div
             key={card.title}
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+            className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center justify-between mb-4">
-              <div className={`w-12 h-12 ${card.color} rounded-lg flex items-center justify-center`}>
+              <div className={`w-12 h-12 ${card.color} rounded-lg flex items-center justify-center shadow-sm`}>
                 <card.icon className="w-6 h-6 text-white" />
               </div>
               <div
-                className={`flex items-center text-sm ${card.trend === "up" ? "text-green-600" : "text-red-600"}`}
+                className={`flex items-center text-sm font-medium ${card.trend === "up" ? "text-green-600" : "text-red-600"}`}
               >
                 {card.trend === "up" ? (
                   <ArrowUp className="w-4 h-4 mr-1" />
@@ -237,7 +240,7 @@ const DashboardPage: React.FC = () => {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Actions Rapides</h2>
             <div className="space-y-3">
               <button
-                className="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm hover:shadow-md"
                 onClick={() => navigate("/jobs/create")}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -255,20 +258,20 @@ const DashboardPage: React.FC = () => {
           </div>
 
           {/* AI Insights */}
-          <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900 dark:to-blue-900 rounded-xl p-6 border border-purple-200 dark:border-purple-700">
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 rounded-xl p-6 border border-purple-200 dark:border-purple-700">
             <div className="flex items-center mb-4">
               <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400 mr-2" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Insights IA</h2>
             </div>
             <div className="space-y-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                 <h3 className="font-medium text-gray-900 dark:text-white mb-2">Recommandation du jour</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   3 candidats avec un score de matching &gt; 90% attendent votre attention pour le poste de
                   "Développeur Full Stack".
                 </p>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                 <h3 className="font-medium text-gray-900 dark:text-white mb-2">Tendance détectée</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Les candidats avec des compétences en React sont 40% plus susceptibles d'accepter vos offres.
@@ -285,7 +288,7 @@ const DashboardPage: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Performance de Recrutement</h2>
             <div className="flex space-x-2">
-              <button className="px-3 py-1 text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg">
+              <button className="px-3 py-1 text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg font-medium">
                 7 jours
               </button>
               <button className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
@@ -305,7 +308,7 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   )
 }
 

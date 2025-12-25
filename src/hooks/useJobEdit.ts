@@ -1,9 +1,10 @@
-// hooks/useJobEdit.ts
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import jobService from '../services/JobService'
-import { useToast } from '../contexts/ToastContext'
-import type { JobOffer, JobOfferCreate } from '../types/api'
+// hooks/useJobEdit.ts - Hook mis à jour avec matching config
+
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import jobService from "../services/JobService"
+import { useToast } from "../contexts/ToastContext"
+import type { JobOffer, JobOfferCreate, MatchingWeights } from "../types/api"
 
 interface UseJobEditOptions {
   id?: string
@@ -18,12 +19,13 @@ export interface JobEditFormData {
   benefits: string[]
   status: "draft" | "active" | "paused" | "closed"
   experience_level: "junior" | "middle" | "senior"
-  salary_min: string
-  salary_max: string
-  location: string
   remote_allowed: boolean
   contract_type: string
   deadline: string
+  
+  // Nouveaux champs pour le matching personnalisé
+  matching_weights?: MatchingWeights
+  system_prompt?: string
 }
 
 export const useJobEdit = (options: UseJobEditOptions = {}) => {
@@ -38,12 +40,11 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     benefits: [],
     status: "draft",
     experience_level: "middle",
-    salary_min: "",
-    salary_max: "",
-    location: "",
     remote_allowed: false,
     contract_type: "CDI",
     deadline: "",
+    matching_weights: undefined,
+    system_prompt: undefined,
   })
 
   const [originalJob, setOriginalJob] = useState<JobOffer | null>(null)
@@ -65,19 +66,23 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     try {
       const jobData = await jobService.getJob(Number(id))
       setOriginalJob(jobData)
-      
+
       // Convertir les données pour le formulaire
-      const requirementsList = typeof jobData.requirements === 'string' 
-        ? jobData.requirements.split('\n').filter(req => req.trim())
-        : Array.isArray(jobData.requirements) ? jobData.requirements : []
+      const requirementsList =
+        typeof jobData.requirements === "string"
+          ? jobData.requirements.split("\n").filter((req) => req.trim())
+          : Array.isArray(jobData.requirements)
+            ? jobData.requirements
+            : []
 
-      const benefitsList = typeof jobData.benefits === 'string'
-        ? jobData.benefits.split('\n').filter(benefit => benefit.trim())
-        : Array.isArray(jobData.benefits) ? jobData.benefits : []
+      const benefitsList =
+        typeof jobData.benefits === "string"
+          ? jobData.benefits.split("\n").filter((benefit) => benefit.trim())
+          : Array.isArray(jobData.benefits)
+            ? jobData.benefits
+            : []
 
-      const deadlineFormatted = jobData.deadline 
-        ? new Date(jobData.deadline).toISOString().split('T')[0]
-        : ""
+      const deadlineFormatted = jobData.deadline ? new Date(jobData.deadline).toISOString().split("T")[0] : ""
 
       setFormData({
         title: jobData.title || "",
@@ -86,12 +91,11 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
         benefits: benefitsList,
         status: jobData.status || "draft",
         experience_level: jobData.experience_level || "middle",
-        salary_min: jobData.salary_min?.toString() || "",
-        salary_max: jobData.salary_max?.toString() || "",
-        location: jobData.location || "",
         remote_allowed: jobData.remote_allowed || false,
         contract_type: jobData.contract_type || "CDI",
         deadline: deadlineFormatted,
+        matching_weights: jobData.matching_weights,
+        system_prompt: jobData.system_prompt,
       })
     } catch (error: any) {
       const errorMessage = error.message || "Erreur lors du chargement de l'offre"
@@ -109,38 +113,13 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     if (!formData.title.trim()) {
       newErrors.title = "Le titre est requis"
     }
-    
-    if (!formData.location.trim()) {
-      newErrors.location = "La localisation est requise"
-    }
-    
+
     if (!formData.description.trim()) {
       newErrors.description = "La description est requise"
     }
-    
+
     if (!formData.deadline) {
       newErrors.deadline = "La date limite est requise"
-    }
-    
-    if (!formData.salary_min) {
-      newErrors.salary_min = "Le salaire minimum est requis"
-    }
-    
-    if (!formData.salary_max) {
-      newErrors.salary_max = "Le salaire maximum est requis"
-    }
-
-    if (formData.salary_min && formData.salary_max) {
-      const minSalary = Number.parseInt(formData.salary_min)
-      const maxSalary = Number.parseInt(formData.salary_max)
-      
-      if (minSalary >= maxSalary) {
-        newErrors.salary_max = "Le salaire maximum doit être supérieur au minimum"
-      }
-      
-      if (minSalary < 0) {
-        newErrors.salary_min = "Le salaire minimum ne peut pas être négatif"
-      }
     }
 
     setErrors(newErrors)
@@ -162,16 +141,17 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
       const apiData: JobOfferCreate = {
         title: formData.title,
         description: formData.description,
-        requirements: formData.requirements.join('\n'),
-        benefits: formData.benefits.join('\n'),
+        requirements: formData.requirements.join("\n"),
+        benefits: formData.benefits.join("\n"),
         status: updatedStatus,
         experience_level: formData.experience_level,
-        salary_min: formData.salary_min ? Number(formData.salary_min) : null,
-        salary_max: formData.salary_max ? Number(formData.salary_max) : null,
-        location: formData.location,
         remote_allowed: formData.remote_allowed,
         contract_type: formData.contract_type,
         deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null,
+        
+        // Nouveaux champs de matching
+        matching_weights: formData.matching_weights,
+        system_prompt: formData.system_prompt?.trim() || undefined,
       }
 
       let savedJob: JobOffer
@@ -198,15 +178,12 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     }
   }
 
-  const updateField = <K extends keyof JobEditFormData>(
-    field: K,
-    value: JobEditFormData[K]
-  ) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    
+  const updateField = <K extends keyof JobEditFormData>(field: K, value: JobEditFormData[K]) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+
     // Effacer l'erreur pour ce champ
     if (errors[field]) {
-      setErrors(prev => {
+      setErrors((prev) => {
         const newErrors = { ...prev }
         delete newErrors[field]
         return newErrors
@@ -214,23 +191,23 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     }
   }
 
-  const addToList = (field: 'requirements' | 'benefits', item: string) => {
+  const addToList = (field: "requirements" | "benefits", item: string) => {
     const trimmedItem = item.trim()
     if (!trimmedItem || formData[field].includes(trimmedItem)) {
       return false
     }
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: [...prev[field], trimmedItem]
+      [field]: [...prev[field], trimmedItem],
     }))
     return true
   }
 
-  const removeFromList = (field: 'requirements' | 'benefits', index: number) => {
-    setFormData(prev => ({
+  const removeFromList = (field: "requirements" | "benefits", index: number) => {
+    setFormData((prev) => ({
       ...prev,
-      [field]: prev[field].filter((_, i) => i !== index)
+      [field]: prev[field].filter((_, i) => i !== index),
     }))
   }
 
@@ -247,12 +224,11 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
         benefits: [],
         status: "draft",
         experience_level: "middle",
-        salary_min: "",
-        salary_max: "",
-        location: "",
         remote_allowed: false,
         contract_type: "CDI",
         deadline: "",
+        matching_weights: undefined,
+        system_prompt: undefined,
       })
     }
     setErrors({})
@@ -265,34 +241,41 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     const currentApiData = {
       title: formData.title,
       description: formData.description,
-      requirements: formData.requirements.join('\n'),
-      benefits: formData.benefits.join('\n'),
+      requirements: formData.requirements.join("\n"),
+      benefits: formData.benefits.join("\n"),
       status: formData.status,
       experience_level: formData.experience_level,
-      salary_min: formData.salary_min ? Number(formData.salary_min) : null,
-      salary_max: formData.salary_max ? Number(formData.salary_max) : null,
-      location: formData.location,
       remote_allowed: formData.remote_allowed,
       contract_type: formData.contract_type,
       deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null,
+      matching_weights: formData.matching_weights,
+      system_prompt: formData.system_prompt,
     }
 
     const originalData = {
       title: originalJob.title,
       description: originalJob.description,
-      requirements: typeof originalJob.requirements === 'string' ? originalJob.requirements : '',
-      benefits: typeof originalJob.benefits === 'string' ? originalJob.benefits : '',
+      requirements: typeof originalJob.requirements === "string" ? originalJob.requirements : "",
+      benefits: typeof originalJob.benefits === "string" ? originalJob.benefits : "",
       status: originalJob.status,
       experience_level: originalJob.experience_level,
-      salary_min: originalJob.salary_min,
-      salary_max: originalJob.salary_max,
-      location: originalJob.location,
       remote_allowed: originalJob.remote_allowed,
       contract_type: originalJob.contract_type,
       deadline: originalJob.deadline,
+      matching_weights: originalJob.matching_weights,
+      system_prompt: originalJob.system_prompt,
     }
 
     return JSON.stringify(currentApiData) !== JSON.stringify(originalData)
+  }
+
+  // Nouvelle fonction pour mettre à jour la configuration de matching
+  const updateMatchingConfig = (config: { matching_weights?: MatchingWeights; system_prompt?: string }) => {
+    setFormData(prev => ({
+      ...prev,
+      matching_weights: config.matching_weights,
+      system_prompt: config.system_prompt,
+    }))
   }
 
   return {
@@ -302,7 +285,7 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     loading,
     saving,
     originalJob,
-    
+
     // Actions
     saveJob,
     validateForm,
@@ -311,9 +294,10 @@ export const useJobEdit = (options: UseJobEditOptions = {}) => {
     removeFromList,
     resetForm,
     hasChanges,
-    
+    updateMatchingConfig,
+
     // Helpers
     isEditMode: !!id,
-    canPublish: formData.title && formData.description && formData.location,
+    canPublish: formData.title && formData.description,
   }
 }

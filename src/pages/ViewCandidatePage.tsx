@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import { useToast } from "../contexts/ToastContext"
+import { useCandidate } from "../hooks/useCandidate"
 import Header from "../components/Layout/Header"
 import Sidebar from "../components/Layout/Sidebar"
 import { Button } from "../components/ui/button"
@@ -19,12 +20,9 @@ import {
   Calendar,
   Download,
   MessageSquare,
-  Star,
   Eye,
   ExternalLink,
-  Github,
   Linkedin,
-  Globe,
   FileText,
   Clock,
   CheckCircle,
@@ -33,215 +31,77 @@ import {
   User,
   Brain,
   Activity,
+  Loader2,
 } from "lucide-react"
-
-interface Candidate {
-  id: string
-  name: string
-  email: string
-  phone: string
-  location: string
-  position: string
-  experience: number
-  education: string
-  skills: string[]
-  status: "new" | "reviewed" | "interviewed" | "hired" | "rejected"
-  matchScore: number
-  appliedJobs: Array<{
-    id: string
-    title: string
-    appliedDate: string
-    status: string
-  }>
-  appliedDate: string
-  lastActivity: string
-  avatar: string
-  resume: string
-  portfolio?: string
-  linkedin?: string
-  github?: string
-  website?: string
-  summary: string
-  languages: string[]
-  certifications: string[]
-  notes: Array<{
-    id: string
-    content: string
-    author: string
-    date: string
-    type: "note" | "interview" | "call" | "email"
-  }>
-  timeline: Array<{
-    id: string
-    type: "application" | "review" | "interview" | "call" | "email" | "status_change"
-    title: string
-    description: string
-    date: string
-    author?: string
-  }>
-}
+import type { Candidate } from "../types/api"
 
 const ViewCandidatePage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
-  const [candidate, setCandidate] = useState<Candidate | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "timeline">("overview")
+  const candidateId = Number.parseInt(id || "0")
+
+  const {
+    candidate,
+    notes,
+    timeline,
+    matches,
+    loading,
+    error,
+    notesLoading,
+    timelineLoading,
+    matchingLoading,
+    fetchNotes,
+    fetchTimeline,
+    findMatches,
+    updateStatus,
+    addNote,
+  } = useCandidate(candidateId)
+
+  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "timeline" | "matching">("overview")
   const [newNote, setNewNote] = useState("")
   const [addingNote, setAddingNote] = useState(false)
 
   useEffect(() => {
-    fetchCandidate()
-  }, [id])
-
-  const fetchCandidate = async () => {
-    setLoading(true)
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock candidate data
-      const mockCandidate: Candidate = {
-        id: id || "1",
-        name: "Sarah Alami",
-        email: "sarah.alami@email.com",
-        phone: "+212 6XX XX XX XX",
-        location: "Casablanca",
-        position: "Développeuse Full Stack",
-        experience: 4,
-        education: "Master Informatique - ENSIAS",
-        skills: ["React", "Node.js", "MongoDB", "TypeScript", "AWS", "Docker", "Git", "Python"],
-        status: "reviewed",
-        matchScore: 96,
-        appliedJobs: [
-          {
-            id: "1",
-            title: "Développeur Full Stack React/Node.js",
-            appliedDate: "2024-01-20",
-            status: "En cours",
-          },
-          {
-            id: "2",
-            title: "Lead Developer",
-            appliedDate: "2024-01-15",
-            status: "Rejetée",
-          },
-        ],
-        appliedDate: "2024-01-20",
-        lastActivity: "2024-01-22",
-        avatar: "/placeholder.svg?height=80&width=80&text=SA",
-        resume: "sarah_alami_cv.pdf",
-        portfolio: "https://sarah-alami.dev",
-        linkedin: "https://linkedin.com/in/sarah-alami",
-        github: "https://github.com/sarah-alami",
-        summary: `Développeuse Full Stack passionnée avec 4 ans d'expérience dans le développement d'applications web modernes. Spécialisée dans l'écosystème JavaScript (React, Node.js) avec une forte expertise en bases de données et déploiement cloud.
-
-Expérience significative dans le développement d'applications e-commerce, plateformes SaaS et APIs REST. Adepte des méthodologies Agile et du travail en équipe.`,
-        languages: ["Français (Natif)", "Anglais (Courant)", "Arabe (Natif)"],
-        certifications: ["AWS Solutions Architect", "MongoDB Developer", "Scrum Master"],
-        notes: [
-          {
-            id: "1",
-            content: "Excellent profil technique, très motivée. Expérience solide en React et Node.js.",
-            author: "Ahmed Benali",
-            date: "2024-01-21",
-            type: "note",
-          },
-          {
-            id: "2",
-            content: "Entretien téléphonique très positif. Bonne communication, questions pertinentes.",
-            author: "Fatima El Mansouri",
-            date: "2024-01-22",
-            type: "call",
-          },
-        ],
-        timeline: [
-          {
-            id: "1",
-            type: "application",
-            title: "Candidature reçue",
-            description: "Candidature pour le poste de Développeur Full Stack React/Node.js",
-            date: "2024-01-20",
-          },
-          {
-            id: "2",
-            type: "review",
-            title: "CV examiné",
-            description: "Profil technique correspondant aux exigences",
-            date: "2024-01-21",
-            author: "Ahmed Benali",
-          },
-          {
-            id: "3",
-            type: "call",
-            title: "Entretien téléphonique",
-            description: "Premier contact téléphonique - 30 minutes",
-            date: "2024-01-22",
-            author: "Fatima El Mansouri",
-          },
-          {
-            id: "4",
-            type: "status_change",
-            title: "Statut mis à jour",
-            description: "Statut changé de 'Nouveau' à 'Examiné'",
-            date: "2024-01-22",
-            author: "Ahmed Benali",
-          },
-        ],
-      }
-
-      setCandidate(mockCandidate)
-    } catch (error) {
-      addToast("Erreur lors du chargement du candidat", "error")
-      navigate("/candidates")
-    } finally {
-      setLoading(false)
+    if (activeTab === "notes" && notes.length === 0 && !notesLoading) {
+      fetchNotes()
     }
-  }
+    if (activeTab === "timeline" && timeline.length === 0 && !timelineLoading) {
+      fetchTimeline()
+    }
+  }, [activeTab])
 
   const handleStatusChange = async (newStatus: Candidate["status"]) => {
-    if (!candidate) return
-
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      setCandidate({ ...candidate, status: newStatus })
+      await updateStatus(newStatus)
       addToast("Statut mis à jour avec succès", "success")
-    } catch (error) {
-      addToast("Erreur lors de la mise à jour", "error")
+    } catch (error: any) {
+      addToast(error.message || "Erreur lors de la mise à jour", "error")
     }
   }
 
   const handleAddNote = async () => {
-    if (!newNote.trim() || !candidate) return
+    if (!newNote.trim()) return
 
     setAddingNote(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      const note = {
-        id: Date.now().toString(),
-        content: newNote,
-        author: user?.name || "Utilisateur",
-        date: new Date().toISOString().split("T")[0],
-        type: "note" as const,
-      }
-
-      setCandidate({
-        ...candidate,
-        notes: [note, ...candidate.notes],
-      })
-
+      await addNote(newNote)
       setNewNote("")
       addToast("Note ajoutée avec succès", "success")
-    } catch (error) {
-      addToast("Erreur lors de l'ajout de la note", "error")
+    } catch (error: any) {
+      addToast(error.message || "Erreur lors de l'ajout de la note", "error")
     } finally {
       setAddingNote(false)
+    }
+  }
+
+  const handleFindMatches = async () => {
+    try {
+      await findMatches()
+      addToast("Matching terminé avec succès", "success")
+    } catch (error: any) {
+      addToast("Erreur lors du matching", "error")
     }
   }
 
@@ -304,6 +164,10 @@ Expérience significative dans le développement d'applications e-commerce, plat
     }
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("fr-FR")
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -312,7 +176,10 @@ Expérience significative dans le développement d'applications e-commerce, plat
           <Sidebar />
           <main className="flex-1 ml-64 pt-16">
             <div className="flex items-center justify-center h-96">
-              <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
+              <div className="flex items-center space-x-2">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                <span className="text-lg text-gray-600 dark:text-gray-400">Chargement du candidat...</span>
+              </div>
             </div>
           </main>
         </div>
@@ -320,7 +187,7 @@ Expérience significative dans le développement d'applications e-commerce, plat
     )
   }
 
-  if (!candidate) {
+  if (error || !candidate) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Header />
@@ -330,8 +197,12 @@ Expérience significative dans le développement d'applications e-commerce, plat
             <div className="flex items-center justify-center h-96">
               <div className="text-center">
                 <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Candidat introuvable</h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-4">Ce candidat n'existe pas ou a été supprimé.</p>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  {error || "Candidat introuvable"}
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  {error || "Ce candidat n'existe pas ou a été supprimé."}
+                </p>
                 <Button onClick={() => navigate("/candidates")}>Retour aux candidats</Button>
               </div>
             </div>
@@ -356,21 +227,19 @@ Expérience significative dans le développement d'applications e-commerce, plat
                   Retour
                 </Button>
                 <div className="flex items-center space-x-4">
-                  <img
-                    src={candidate.avatar || "/placeholder.svg"}
-                    alt={candidate.name}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
+                  <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                    <User className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  </div>
                   <div>
                     <div className="flex items-center space-x-3 mb-2">
-                      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{candidate.name}</h1>
+                      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{candidate.full_name}</h1>
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(candidate.status)}`}
                       >
                         {getStatusText(candidate.status)}
                       </span>
                     </div>
-                    <p className="text-gray-600 dark:text-gray-400">{candidate.position}</p>
+                    <p className="text-gray-600 dark:text-gray-400">{candidate.current_position}</p>
                   </div>
                 </div>
               </div>
@@ -383,10 +252,14 @@ Expérience significative dans le développement d'applications e-commerce, plat
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Message
                 </Button>
-                <Button variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  CV
-                </Button>
+                {candidate.cv_file && (
+                  <Button variant="outline" asChild>
+                    <a href={candidate.cv_file} target="_blank" rel="noopener noreferrer">
+                      <Download className="w-4 h-4 mr-2" />
+                      CV
+                    </a>
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -397,9 +270,14 @@ Expérience significative dans le développement d'applications e-commerce, plat
                 <div className="border-b border-gray-200 dark:border-gray-700">
                   <nav className="-mb-px flex space-x-8">
                     {[
-                      { id: "overview", label: "Vue d'ensemble", icon: User },
+                      {
+                        id: "overview",
+                        label: "Vue d'ensemble",
+                        icon: User,
+                      },
                       { id: "notes", label: "Notes", icon: FileText },
                       { id: "timeline", label: "Timeline", icon: Clock },
+                      { id: "matching", label: "Matching IA", icon: Brain },
                     ].map((tab) => (
                       <button
                         key={tab.id}
@@ -435,44 +313,54 @@ Expérience significative dans le développement d'applications e-commerce, plat
                                 <div className="font-medium text-gray-900 dark:text-white">{candidate.email}</div>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-3">
-                              <Phone className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Téléphone</div>
-                                <div className="font-medium text-gray-900 dark:text-white">{candidate.phone}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <MapPin className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Localisation</div>
-                                <div className="font-medium text-gray-900 dark:text-white">{candidate.location}</div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="space-y-4">
-                            <div className="flex items-center space-x-3">
-                              <Briefcase className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Expérience</div>
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                  {candidate.experience} ans
+                            {candidate.phone && (
+                              <div className="flex items-center space-x-3">
+                                <Phone className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">Téléphone</div>
+                                  <div className="font-medium text-gray-900 dark:text-white">{candidate.phone}</div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <GraduationCap className="w-5 h-5 text-gray-400" />
-                              <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Formation</div>
-                                <div className="font-medium text-gray-900 dark:text-white">{candidate.education}</div>
+                            )}
+                            {candidate.city && (
+                              <div className="flex items-center space-x-3">
+                                <MapPin className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">Ville</div>
+                                  <div className="font-medium text-gray-900 dark:text-white">{candidate.city}</div>
+                                </div>
                               </div>
-                            </div>
+                            )}
+                          </div>
+                          <div className="space-y-4">
+                            {candidate.experience_years && (
+                              <div className="flex items-center space-x-3">
+                                <Briefcase className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">Expérience</div>
+                                  <div className="font-medium text-gray-900 dark:text-white">
+                                    {candidate.experience_years} ans
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {candidate.education_level && (
+                              <div className="flex items-center space-x-3">
+                                <GraduationCap className="w-5 h-5 text-gray-400" />
+                                <div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">Formation</div>
+                                  <div className="font-medium text-gray-900 dark:text-white">
+                                    {candidate.education_level}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             <div className="flex items-center space-x-3">
                               <Calendar className="w-5 h-5 text-gray-400" />
                               <div>
                                 <div className="text-sm text-gray-600 dark:text-gray-400">Candidature</div>
                                 <div className="font-medium text-gray-900 dark:text-white">
-                                  {new Date(candidate.appliedDate).toLocaleDateString("fr-FR")}
+                                  {formatDate(candidate.created_at)}
                                 </div>
                               </div>
                             </div>
@@ -482,65 +370,43 @@ Expérience significative dans le développement d'applications e-commerce, plat
                     </Card>
 
                     {/* Links */}
-                    {(candidate.portfolio || candidate.linkedin || candidate.github || candidate.website) && (
+                    {candidate.linkedin_url && (
                       <Card className="dark:bg-gray-800 dark:border-gray-700">
                         <CardHeader>
                           <CardTitle className="text-gray-900 dark:text-white">Liens</CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="flex flex-wrap gap-4">
-                            {candidate.portfolio && (
-                              <a
-                                href={candidate.portfolio}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center space-x-2 px-3 py-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors"
-                              >
-                                <Globe className="w-4 h-4" />
-                                <span>Portfolio</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
-                            {candidate.linkedin && (
-                              <a
-                                href={candidate.linkedin}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center space-x-2 px-3 py-2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-                              >
-                                <Linkedin className="w-4 h-4" />
-                                <span>LinkedIn</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
-                            {candidate.github && (
-                              <a
-                                href={candidate.github}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                              >
-                                <Github className="w-4 h-4" />
-                                <span>GitHub</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
+                            <a
+                              href={candidate.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-2 px-3 py-2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                            >
+                              <Linkedin className="w-4 h-4" />
+                              <span>LinkedIn</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
                           </div>
                         </CardContent>
                       </Card>
                     )}
 
-                    {/* Summary */}
-                    <Card className="dark:bg-gray-800 dark:border-gray-700">
-                      <CardHeader>
-                        <CardTitle className="text-gray-900 dark:text-white">Résumé professionnel</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="prose dark:prose-invert max-w-none">
-                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{candidate.summary}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    {/* AI Summary */}
+                    {candidate.ai_summary && (
+                      <Card className="dark:bg-gray-800 dark:border-gray-700">
+                        <CardHeader>
+                          <CardTitle className="text-gray-900 dark:text-white">Résumé IA</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="prose dark:prose-invert max-w-none">
+                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                              {candidate.ai_summary}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
 
                     {/* Skills */}
                     <Card className="dark:bg-gray-800 dark:border-gray-700">
@@ -548,21 +414,139 @@ Expérience significative dans le développement d'applications e-commerce, plat
                         <CardTitle className="text-gray-900 dark:text-white">Compétences</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="flex flex-wrap gap-2">
-                          {candidate.skills.map((skill, index) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full text-sm"
-                            >
-                              {skill}
-                            </span>
-                          ))}
+                        <div className="space-y-4">
+                          {candidate.technical_skills &&
+                            Array.isArray(candidate.technical_skills) &&
+                            candidate.technical_skills.length > 0 && (
+                              <div>
+                                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                                  Compétences techniques ({candidate.technical_skills.length})
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {candidate.technical_skills.map((skill, index) => (
+                                    <span
+                                      key={index}
+                                      className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full dark:bg-green-900 dark:text-green-300"
+                                    >
+                                      {skill}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                          {candidate.soft_skills &&
+                            Array.isArray(candidate.soft_skills) &&
+                            candidate.soft_skills.length > 0 && (
+                              <div>
+                                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                                  Compétences comportementales ({candidate.soft_skills.length})
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {candidate.soft_skills.map((skill, index) => (
+                                    <span
+                                      key={index}
+                                      className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full dark:bg-blue-900 dark:text-blue-300"
+                                    >
+                                      {skill}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                          {(!candidate.technical_skills || candidate.technical_skills.length === 0) &&
+                            (!candidate.soft_skills || candidate.soft_skills.length === 0) &&
+                            candidate.skills_extracted && (
+                              <div>
+                                {/* Si skills_extracted est un objet avec technical_skills */}
+                                {typeof candidate.skills_extracted === "object" &&
+                                  !Array.isArray(candidate.skills_extracted) &&
+                                  candidate.skills_extracted.technical_skills &&
+                                  Array.isArray(candidate.skills_extracted.technical_skills) &&
+                                  candidate.skills_extracted.technical_skills.length > 0 && (
+                                    <div className="mb-4">
+                                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                                        Compétences techniques ({candidate.skills_extracted.technical_skills.length})
+                                      </h4>
+                                      <div className="flex flex-wrap gap-2">
+                                        {candidate.skills_extracted.technical_skills.map((skill, index) => (
+                                          <span
+                                            key={index}
+                                            className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full dark:bg-green-900 dark:text-green-300"
+                                          >
+                                            {skill}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Si skills_extracted est un objet avec soft_skills */}
+                                {typeof candidate.skills_extracted === "object" &&
+                                  !Array.isArray(candidate.skills_extracted) &&
+                                  candidate.skills_extracted.soft_skills &&
+                                  Array.isArray(candidate.skills_extracted.soft_skills) &&
+                                  candidate.skills_extracted.soft_skills.length > 0 && (
+                                    <div>
+                                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                                        Compétences comportementales ({candidate.skills_extracted.soft_skills.length})
+                                      </h4>
+                                      <div className="flex flex-wrap gap-2">
+                                        {candidate.skills_extracted.soft_skills.map((skill, index) => (
+                                          <span
+                                            key={index}
+                                            className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full dark:bg-blue-900 dark:text-blue-300"
+                                          >
+                                            {skill}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Si skills_extracted est un simple array */}
+                                {Array.isArray(candidate.skills_extracted) && candidate.skills_extracted.length > 0 && (
+                                  <div>
+                                    <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                                      Compétences ({candidate.skills_extracted.length})
+                                    </h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {candidate.skills_extracted.map((skill, index) => (
+                                        <span
+                                          key={index}
+                                          className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full dark:bg-gray-700 dark:text-gray-300"
+                                        >
+                                          {skill}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                          {(!candidate.technical_skills || candidate.technical_skills.length === 0) &&
+                            (!candidate.soft_skills || candidate.soft_skills.length === 0) &&
+                            (!candidate.skills_extracted ||
+                              (typeof candidate.skills_extracted === "object" &&
+                                !Array.isArray(candidate.skills_extracted) &&
+                                (!candidate.skills_extracted.technical_skills ||
+                                  candidate.skills_extracted.technical_skills.length === 0) &&
+                                (!candidate.skills_extracted.soft_skills ||
+                                  candidate.skills_extracted.soft_skills.length === 0)) ||
+                              (Array.isArray(candidate.skills_extracted) &&
+                                candidate.skills_extracted.length === 0)) && (
+                              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                Aucune compétence renseignée
+                              </div>
+                            )}
                         </div>
                       </CardContent>
                     </Card>
 
-                    {/* Languages & Certifications */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Languages */}
+                    {candidate.languages && candidate.languages.length > 0 && (
                       <Card className="dark:bg-gray-800 dark:border-gray-700">
                         <CardHeader>
                           <CardTitle className="text-gray-900 dark:text-white">Langues</CardTitle>
@@ -577,58 +561,7 @@ Expérience significative dans le développement d'applications e-commerce, plat
                           </div>
                         </CardContent>
                       </Card>
-
-                      <Card className="dark:bg-gray-800 dark:border-gray-700">
-                        <CardHeader>
-                          <CardTitle className="text-gray-900 dark:text-white">Certifications</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {candidate.certifications.map((cert, index) => (
-                              <div key={index} className="flex items-center space-x-2">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                                <span className="text-gray-700 dark:text-gray-300">{cert}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Applied Jobs */}
-                    <Card className="dark:bg-gray-800 dark:border-gray-700">
-                      <CardHeader>
-                        <CardTitle className="text-gray-900 dark:text-white">Candidatures</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {candidate.appliedJobs.map((job, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                            >
-                              <div>
-                                <h4 className="font-medium text-gray-900 dark:text-white">{job.title}</h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                  Candidature le {new Date(job.appliedDate).toLocaleDateString("fr-FR")}
-                                </p>
-                              </div>
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  job.status === "En cours"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                    : job.status === "Rejetée"
-                                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                      : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                }`}
-                              >
-                                {job.status}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    )}
                   </div>
                 )}
 
@@ -649,46 +582,66 @@ Expérience significative dans le développement d'applications e-commerce, plat
                             placeholder="Ajouter une note sur ce candidat..."
                           />
                           <Button onClick={handleAddNote} disabled={!newNote.trim() || addingNote}>
-                            {addingNote ? "Ajout..." : "Ajouter la note"}
+                            {addingNote ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Ajout...
+                              </>
+                            ) : (
+                              "Ajouter la note"
+                            )}
                           </Button>
                         </div>
                       </CardContent>
                     </Card>
 
                     {/* Notes List */}
-                    <div className="space-y-4">
-                      {candidate.notes.map((note) => (
-                        <Card key={note.id} className="dark:bg-gray-800 dark:border-gray-700">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                                  {note.type === "note" && (
-                                    <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                  )}
-                                  {note.type === "call" && (
-                                    <Phone className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                  )}
-                                  {note.type === "email" && (
-                                    <Mail className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                  )}
-                                  {note.type === "interview" && (
-                                    <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                  )}
-                                </div>
-                                <div>
-                                  <div className="font-medium text-gray-900 dark:text-white">{note.author}</div>
-                                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    {new Date(note.date).toLocaleDateString("fr-FR")}
+                    {notesLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {notes.map((note) => (
+                          <Card key={note.id} className="dark:bg-gray-800 dark:border-gray-700">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                                    {note.note_type === "note" && (
+                                      <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                    )}
+                                    {note.note_type === "call" && (
+                                      <Phone className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                    )}
+                                    {note.note_type === "email" && (
+                                      <Mail className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                    )}
+                                    {note.note_type === "interview" && (
+                                      <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900 dark:text-white">
+                                      {note.author.get_full_name}
+                                    </div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                                      {formatDate(note.created_at)}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                            <p className="text-gray-700 dark:text-gray-300">{note.content}</p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                              <p className="text-gray-700 dark:text-gray-300">{note.content}</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                        {notes.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            Aucune note pour ce candidat
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -699,29 +652,107 @@ Expérience significative dans le développement d'applications e-commerce, plat
                         <CardTitle className="text-gray-900 dark:text-white">Historique des activités</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-6">
-                          {candidate.timeline.map((event, index) => (
-                            <div key={event.id} className="flex items-start space-x-4">
-                              <div className="flex-shrink-0">
-                                <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                                  {getTimelineIcon(event.type)}
+                        {timelineLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                          </div>
+                        ) : (
+                          <div className="space-y-6">
+                            {timeline.map((event, index) => (
+                              <div key={event.id} className="flex items-start space-x-4">
+                                <div className="flex-shrink-0">
+                                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                                    {getTimelineIcon(event.type)}
+                                  </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">{event.title}</h4>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                      {formatDate(event.date)}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{event.description}</p>
+                                  {event.author && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Par {event.author}</p>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="text-sm font-medium text-gray-900 dark:text-white">{event.title}</h4>
-                                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    {new Date(event.date).toLocaleDateString("fr-FR")}
+                            ))}
+                            {timeline.length === 0 && (
+                              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                Aucune activité enregistrée
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {activeTab === "matching" && (
+                  <div className="space-y-6">
+                    <Card className="dark:bg-gray-800 dark:border-gray-700">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between text-gray-900 dark:text-white">
+                          <span>Matching IA - Offres d'emploi compatibles</span>
+                          <Button onClick={handleFindMatches} disabled={matchingLoading}>
+                            {matchingLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Recherche...
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="w-4 h-4 mr-2" />
+                                Lancer le matching
+                              </>
+                            )}
+                          </Button>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {matches.length > 0 ? (
+                          <div className="space-y-4">
+                            {matches.map((match, index) => (
+                              <div
+                                key={match.job_id}
+                                className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <div>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">{match.job_title}</h4>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      {match.company_name} • {match.location}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className={`text-2xl font-bold ${getMatchScoreColor(match.overall_score)}`}>
+                                      {match.overall_score}%
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">Compatibilité</div>
+                                  </div>
+                                </div>
+                                <div className="mb-3">
+                                  <p className="text-sm text-gray-700 dark:text-gray-300">{match.recommendation}</p>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-600 dark:text-gray-400">
+                                    {match.contract_type} • {match.salary_range}
                                   </span>
+                                  <Button variant="outline" size="sm">
+                                    Voir l'offre
+                                  </Button>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{event.description}</p>
-                                {event.author && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Par {event.author}</p>
-                                )}
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            Cliquez sur "Lancer le matching" pour trouver les offres compatibles
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -731,22 +762,24 @@ Expérience significative dans le développement d'applications e-commerce, plat
               {/* Sidebar */}
               <div className="space-y-6">
                 {/* Match Score */}
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-gray-900 dark:text-white">
-                      <Brain className="w-5 h-5 mr-2" />
-                      Score IA
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center">
-                      <div className={`text-4xl font-bold mb-2 ${getMatchScoreColor(candidate.matchScore)}`}>
-                        {candidate.matchScore}%
+                {candidate.global_match_score && (
+                  <Card className="dark:bg-gray-800 dark:border-gray-700">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-gray-900 dark:text-white">
+                        <Brain className="w-5 h-5 mr-2" />
+                        Score IA Global
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center">
+                        <div className={`text-4xl font-bold mb-2 ${getMatchScoreColor(candidate.global_match_score)}`}>
+                          {Math.round(candidate.global_match_score)}%
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Score de compatibilité global</p>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Compatibilité avec le poste</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Status Actions */}
                 <Card className="dark:bg-gray-800 dark:border-gray-700">
@@ -795,22 +828,28 @@ Expérience significative dans le développement d'applications e-commerce, plat
                     <CardTitle className="text-gray-900 dark:text-white">Actions rapides</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <Phone className="w-4 h-4 mr-2" />
-                      Appeler
+                    {candidate.phone && (
+                      <Button variant="outline" className="w-full justify-start bg-transparent" asChild>
+                        <a href={`tel:${candidate.phone}`}>
+                          <Phone className="w-4 h-4 mr-2" />
+                          Appeler
+                        </a>
+                      </Button>
+                    )}
+                    <Button variant="outline" className="w-full justify-start bg-transparent" asChild>
+                      <a href={`mailto:${candidate.email}`}>
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Envoyer un email
+                      </a>
                     </Button>
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Envoyer un message
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <Download className="w-4 h-4 mr-2" />
-                      Télécharger CV
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <Star className="w-4 h-4 mr-2" />
-                      Ajouter aux favoris
-                    </Button>
+                    {candidate.cv_file && (
+                      <Button variant="outline" className="w-full justify-start bg-transparent" asChild>
+                        <a href={candidate.cv_file} target="_blank" rel="noopener noreferrer">
+                          <Download className="w-4 h-4 mr-2" />
+                          Télécharger CV
+                        </a>
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -822,16 +861,16 @@ Expérience significative dans le développement d'applications e-commerce, plat
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Candidatures</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{candidate.appliedJobs.length}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{candidate.application_count}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Notes</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{candidate.notes.length}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{notes.length}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Dernière activité</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Dernière mise à jour</span>
                       <span className="font-medium text-gray-900 dark:text-white">
-                        {new Date(candidate.lastActivity).toLocaleDateString("fr-FR")}
+                        {formatDate(candidate.updated_at)}
                       </span>
                     </div>
                   </CardContent>

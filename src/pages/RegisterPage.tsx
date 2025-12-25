@@ -9,12 +9,14 @@ import { Brain, Eye, EyeOff, Mail, Lock, User, Building } from "lucide-react"
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
     password: "",
-    confirmPassword: "",
-    company: "",
-    role: "recruiter",
+    confirm_password: "",
+    company_name: "GIANT LINK",
+    role: "recruiter", // Set default value
+    accept_terms: false,
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -25,16 +27,27 @@ const RegisterPage: React.FC = () => {
   const navigate = useNavigate()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+    const { name, value, type } = e.target
+    
+    if (type === 'checkbox') {
+      const checkbox = e.target as HTMLInputElement
+      setFormData({
+        ...formData,
+        [name]: checkbox.checked,
+      })
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (formData.password !== formData.confirmPassword) {
+    // Client-side validation
+    if (formData.password !== formData.confirm_password) {
       addToast("Les mots de passe ne correspondent pas", "error")
       return
     }
@@ -44,18 +57,39 @@ const RegisterPage: React.FC = () => {
       return
     }
 
+    if (!formData.accept_terms) {
+      addToast("Vous devez accepter les conditions d'utilisation", "error")
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const success = await register(formData)
-      if (success) {
-        addToast("Compte créé avec succès !", "success")
-        navigate("/dashboard")
+      await register(formData)
+      addToast("Compte créé avec succès !", "success")
+      navigate("/dashboard")
+    } catch (error: any) {
+      console.error('Registration error:', error)
+      
+      // Handle specific error messages from the API
+      if (error?.response?.data?.errors) {
+        const errors = error.response.data.errors
+        Object.keys(errors).forEach(field => {
+          if (Array.isArray(errors[field])) {
+            errors[field].forEach((message: string) => {
+              addToast(message, "error")
+            })
+          } else {
+            addToast(errors[field], "error")
+          }
+        })
+      } else if (error?.response?.data?.message) {
+        addToast(error.response.data.message, "error")
+      } else if (error?.message) {
+        addToast(error.message, "error")
       } else {
         addToast("Une erreur est survenue lors de la création du compte", "error")
       }
-    } catch (error) {
-      addToast("Une erreur est survenue", "error")
     } finally {
       setIsLoading(false)
     }
@@ -70,34 +104,56 @@ const RegisterPage: React.FC = () => {
             <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
               <Brain className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-gray-900 dark:text-white">TalentAI Maroc</span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white">Selektia</span>
           </Link>
 
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Créer votre compte</h2>
-          <p className="text-gray-600 dark:text-gray-400">Commencez votre essai gratuit de 14 jours</p>
+          <p className="text-gray-600 dark:text-gray-400">Commencez votre essai gratuit </p>
         </div>
 
         {/* Form */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Name */}
+            {/* First Name */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Nom complet
+              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Prénom
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="name"
-                  name="name"
+                  id="first_name"
+                  name="first_name"
                   type="text"
                   required
-                  value={formData.name}
+                  value={formData.first_name}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="Ahmed Benali"
+                  placeholder="Ahmed"
+                />
+              </div>
+            </div>
+
+            {/* Last Name */}
+            <div>
+              <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Nom de famille
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="last_name"
+                  name="last_name"
+                  type="text"
+                  required
+                  value={formData.last_name}
+                  onChange={handleChange}
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="Benali"
                 />
               </div>
             </div>
@@ -126,7 +182,7 @@ const RegisterPage: React.FC = () => {
 
             {/* Company */}
             <div>
-              <label htmlFor="company" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Entreprise
               </label>
               <div className="relative">
@@ -134,11 +190,11 @@ const RegisterPage: React.FC = () => {
                   <Building className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="company"
-                  name="company"
+                  id="company_name"
+                  name="company_name"
                   type="text"
                   required
-                  value={formData.company}
+                  value={formData.company_name}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="TechCorp Maroc"
@@ -156,10 +212,13 @@ const RegisterPage: React.FC = () => {
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
+                required
                 className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
+                <option value="">Sélectionnez un rôle</option>
                 <option value="recruiter">Recruteur</option>
-                <option value="hr">RH Manager</option>
+                <option value="hr_manager">Responsable RH</option>
+                <option value="hiring_manager">Manager Recrutement</option>
                 <option value="admin">Administrateur</option>
               </select>
             </div>
@@ -200,7 +259,7 @@ const RegisterPage: React.FC = () => {
             {/* Confirm Password */}
             <div>
               <label
-                htmlFor="confirmPassword"
+                htmlFor="confirm_password"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
                 Confirmer le mot de passe
@@ -210,11 +269,11 @@ const RegisterPage: React.FC = () => {
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="confirmPassword"
-                  name="confirmPassword"
+                  id="confirm_password"
+                  name="confirm_password"
                   type={showConfirmPassword ? "text" : "password"}
                   required
-                  value={formData.confirmPassword}
+                  value={formData.confirm_password}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="••••••••"
@@ -236,13 +295,15 @@ const RegisterPage: React.FC = () => {
             {/* Terms */}
             <div className="flex items-center">
               <input
-                id="terms"
-                name="terms"
+                id="accept_terms"
+                name="accept_terms"
                 type="checkbox"
                 required
+                checked={formData.accept_terms}
+                onChange={handleChange}
                 className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
               />
-              <label htmlFor="terms" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+              <label htmlFor="accept_terms" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
                 J'accepte les{" "}
                 <Link to="/terms" className="text-purple-600 hover:text-purple-500">
                   conditions d'utilisation

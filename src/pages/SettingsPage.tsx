@@ -5,8 +5,7 @@ import { useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { useTheme } from "../contexts/ThemeContext"
 import { useToast } from "../contexts/ToastContext"
-import Header from "../components/Layout/Header"
-import Sidebar from "../components/Layout/Sidebar"
+import Layout from "../components/Layout/Layout"
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import {
@@ -27,11 +26,13 @@ import {
   Plus,
   Edit,
   Download,
+  Sun,
+  Moon,
 } from "lucide-react"
 
 const SettingsPage: React.FC = () => {
   const { user } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, setTheme, actualTheme, toggleTheme } = useTheme()
   const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState("profile")
   const [showPassword, setShowPassword] = useState(false)
@@ -84,7 +85,6 @@ const SettingsPage: React.FC = () => {
   const handleSave = async (section: string) => {
     setLoading(true)
     try {
-      // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000))
       addToast(`Paramètres ${section} sauvegardés avec succès`, "success")
     } catch (error) {
@@ -155,15 +155,13 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Informations personnelles</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Informations personnelles</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-4 mb-6">
-                  <img
-                    src={user?.avatar || "/placeholder.svg?height=80&width=80"}
-                    alt="Avatar"
-                    className="w-20 h-20 rounded-full object-cover"
-                  />
+                  <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-2xl font-bold">{user?.username?.charAt(0).toUpperCase() || "U"}</span>
+                  </div>
                   <div>
                     <Button variant="outline" size="sm">
                       <Upload className="w-4 h-4 mr-2" />
@@ -224,7 +222,84 @@ const SettingsPage: React.FC = () => {
                   />
                 </div>
 
-                <Button onClick={() => handleSave("profil")} disabled={loading}>
+                <Button onClick={() => handleSave("profil")} disabled={loading} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                  <Save className="w-4 h-4 mr-2" />
+                  {loading ? "Sauvegarde..." : "Sauvegarder"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case "appearance":
+        return (
+          <div className="space-y-6">
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Préférences d'apparence</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Thème</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <button
+                      onClick={() => setTheme("light")}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        theme === "light"
+                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      }`}
+                    >
+                      <Sun className="w-6 h-6 mx-auto mb-2 text-yellow-500" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Clair</span>
+                    </button>
+                    <button
+                      onClick={() => setTheme("dark")}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        theme === "dark"
+                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      }`}
+                    >
+                      <Moon className="w-6 h-6 mx-auto mb-2 text-indigo-500" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Sombre</span>
+                    </button>
+                    <button
+                      onClick={() => setTheme("system")}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        theme === "system"
+                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      }`}
+                    >
+                      <Palette className="w-6 h-6 mx-auto mb-2 text-purple-500" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Système</span>
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    Thème actuel : {actualTheme === "dark" ? "Sombre" : "Clair"}
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Langue</h4>
+                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    <option value="fr">Français</option>
+                    <option value="ar">العربية</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Fuseau horaire</h4>
+                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    <option value="Africa/Casablanca">Casablanca (GMT+1)</option>
+                    <option value="Europe/Paris">Paris (GMT+1)</option>
+                    <option value="UTC">UTC (GMT+0)</option>
+                  </select>
+                </div>
+
+                <Button onClick={() => handleSave("apparence")} disabled={loading} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                   <Save className="w-4 h-4 mr-2" />
                   {loading ? "Sauvegarde..." : "Sauvegarder"}
                 </Button>
@@ -238,7 +313,7 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Informations de l'entreprise</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Informations de l'entreprise</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -270,54 +345,9 @@ const SettingsPage: React.FC = () => {
                       <option value="Industrie">Industrie</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Taille de l'entreprise
-                    </label>
-                    <select
-                      value={companyData.size}
-                      onChange={(e) => setCompanyData({ ...companyData, size: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="1-10">1-10 employés</option>
-                      <option value="11-50">11-50 employés</option>
-                      <option value="51-100">51-100 employés</option>
-                      <option value="101-500">101-500 employés</option>
-                      <option value="500+">500+ employés</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Site web</label>
-                    <input
-                      type="url"
-                      value={companyData.website}
-                      onChange={(e) => setCompanyData({ ...companyData, website: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Adresse</label>
-                  <input
-                    type="text"
-                    value={companyData.address}
-                    onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                  <textarea
-                    rows={4}
-                    value={companyData.description}
-                    onChange={(e) => setCompanyData({ ...companyData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <Button onClick={() => handleSave("entreprise")} disabled={loading}>
+                <Button onClick={() => handleSave("entreprise")} disabled={loading} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                   <Save className="w-4 h-4 mr-2" />
                   {loading ? "Sauvegarde..." : "Sauvegarder"}
                 </Button>
@@ -331,121 +361,41 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Préférences de notification</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Préférences de notification</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Notifications par email</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Recevoir les notifications par email</p>
+                  {[
+                    { key: "emailNotifications", label: "Notifications par email", desc: "Recevoir les notifications par email" },
+                    { key: "pushNotifications", label: "Notifications push", desc: "Notifications dans le navigateur" },
+                    { key: "newApplications", label: "Nouvelles candidatures", desc: "Alertes pour les nouvelles candidatures" },
+                    { key: "interviewReminders", label: "Rappels d'entretien", desc: "Rappels avant les entretiens programmés" },
+                    { key: "weeklyReports", label: "Rapports hebdomadaires", desc: "Résumé hebdomadaire des activités" },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-gray-900 dark:text-white">{item.label}</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{item.desc}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings[item.key as keyof typeof notificationSettings]}
+                          onChange={(e) =>
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              [item.key]: e.target.checked,
+                            })
+                          }
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.emailNotifications}
-                        onChange={(e) =>
-                          setNotificationSettings({
-                            ...notificationSettings,
-                            emailNotifications: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Notifications push</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Notifications dans le navigateur</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.pushNotifications}
-                        onChange={(e) =>
-                          setNotificationSettings({
-                            ...notificationSettings,
-                            pushNotifications: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Nouvelles candidatures</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Alertes pour les nouvelles candidatures
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.newApplications}
-                        onChange={(e) =>
-                          setNotificationSettings({
-                            ...notificationSettings,
-                            newApplications: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Rappels d'entretien</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Rappels avant les entretiens programmés
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.interviewReminders}
-                        onChange={(e) =>
-                          setNotificationSettings({
-                            ...notificationSettings,
-                            interviewReminders: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Rapports hebdomadaires</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Résumé hebdomadaire des activités</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.weeklyReports}
-                        onChange={(e) =>
-                          setNotificationSettings({
-                            ...notificationSettings,
-                            weeklyReports: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
+                  ))}
                 </div>
 
-                <Button onClick={() => handleSave("notifications")} disabled={loading}>
+                <Button onClick={() => handleSave("notifications")} disabled={loading} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                   <Save className="w-4 h-4 mr-2" />
                   {loading ? "Sauvegarde..." : "Sauvegarder"}
                 </Button>
@@ -459,77 +409,31 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Paramètres de sécurité</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Paramètres de sécurité</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Authentification à deux facteurs</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Sécurité renforcée avec 2FA</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={securitySettings.twoFactorAuth}
-                        onChange={(e) =>
-                          setSecuritySettings({
-                            ...securitySettings,
-                            twoFactorAuth: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
+                <div className="flex items-center justify-between">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Expiration de session (minutes)
-                    </label>
-                    <select
-                      value={securitySettings.sessionTimeout}
+                    <h4 className="font-medium text-gray-900 dark:text-white">Authentification à deux facteurs</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Sécurité renforcée avec 2FA</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={securitySettings.twoFactorAuth}
                       onChange={(e) =>
                         setSecuritySettings({
                           ...securitySettings,
-                          sessionTimeout: e.target.value,
+                          twoFactorAuth: e.target.checked,
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="15">15 minutes</option>
-                      <option value="30">30 minutes</option>
-                      <option value="60">1 heure</option>
-                      <option value="120">2 heures</option>
-                      <option value="480">8 heures</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Expiration du mot de passe (jours)
-                    </label>
-                    <select
-                      value={securitySettings.passwordExpiry}
-                      onChange={(e) =>
-                        setSecuritySettings({
-                          ...securitySettings,
-                          passwordExpiry: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="30">30 jours</option>
-                      <option value="60">60 jours</option>
-                      <option value="90">90 jours</option>
-                      <option value="180">180 jours</option>
-                      <option value="never">Jamais</option>
-                    </select>
-                  </div>
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
+                  </label>
                 </div>
 
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 dark:border-gray-700">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-4">Changer le mot de passe</h4>
                   <div className="space-y-4">
                     <div>
@@ -555,26 +459,6 @@ const SettingsPage: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Nouveau mot de passe
-                      </label>
-                      <input
-                        type="password"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="Nouveau mot de passe"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Confirmer le nouveau mot de passe
-                      </label>
-                      <input
-                        type="password"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="Confirmer le mot de passe"
-                      />
-                    </div>
                     <Button variant="outline">
                       <Key className="w-4 h-4 mr-2" />
                       Changer le mot de passe
@@ -582,57 +466,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <Button onClick={() => handleSave("sécurité")} disabled={loading}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {loading ? "Sauvegarde..." : "Sauvegarder"}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )
-
-      case "appearance":
-        return (
-          <div className="space-y-6">
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle>Préférences d'apparence</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Thème</h4>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Choisissez entre le thème clair et sombre
-                      </p>
-                    </div>
-                    <Button onClick={toggleTheme} variant="outline">
-                      <Palette className="w-4 h-4 mr-2" />
-                      {theme === "light" ? "Mode sombre" : "Mode clair"}
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Langue</h4>
-                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <option value="fr">Français</option>
-                    <option value="ar">العربية</option>
-                    <option value="en">English</option>
-                  </select>
-                </div>
-
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Fuseau horaire</h4>
-                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <option value="Africa/Casablanca">Casablanca (GMT+1)</option>
-                    <option value="Europe/Paris">Paris (GMT+1)</option>
-                    <option value="UTC">UTC (GMT+0)</option>
-                  </select>
-                </div>
-
-                <Button onClick={() => handleSave("apparence")} disabled={loading}>
+                <Button onClick={() => handleSave("sécurité")} disabled={loading} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                   <Save className="w-4 h-4 mr-2" />
                   {loading ? "Sauvegarde..." : "Sauvegarder"}
                 </Button>
@@ -646,7 +480,7 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Intégrations</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Intégrations</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -656,11 +490,9 @@ const SettingsPage: React.FC = () => {
                       className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
                     >
                       <div className="flex items-center space-x-4">
-                        <img
-                          src={integration.logo || "/placeholder.svg"}
-                          alt={integration.name}
-                          className="w-10 h-10 rounded-lg object-cover"
-                        />
+                        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-lg font-bold">
+                          {integration.name.charAt(0)}
+                        </div>
                         <div>
                           <h4 className="font-medium text-gray-900 dark:text-white">{integration.name}</h4>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{integration.description}</p>
@@ -699,7 +531,7 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Plan actuel</CardTitle>
+                <CardTitle className="text-gray-900 dark:text-white">Plan actuel</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between mb-6">
@@ -711,50 +543,17 @@ const SettingsPage: React.FC = () => {
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">200</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Candidats/mois</div>
                   </div>
-                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">20</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Offres actives</div>
                   </div>
-                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">∞</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Utilisateurs</div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-6">
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">Historique de facturation</h4>
-                  <div className="space-y-3">
-                    {[
-                      { date: "01/01/2024", amount: "799 MAD", status: "Payé", invoice: "INV-2024-001" },
-                      { date: "01/12/2023", amount: "799 MAD", status: "Payé", invoice: "INV-2023-012" },
-                      { date: "01/11/2023", amount: "799 MAD", status: "Payé", invoice: "INV-2023-011" },
-                    ].map((bill, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">{bill.invoice}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{bill.date}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                          <div className="text-right">
-                            <div className="font-medium text-gray-900 dark:text-white">{bill.amount}</div>
-                            <div className="text-sm text-green-600">{bill.status}</div>
-                          </div>
-                          <Button variant="outline" size="sm">
-                            <Download className="w-4 h-4 mr-1" />
-                            PDF
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
               </CardContent>
@@ -768,8 +567,8 @@ const SettingsPage: React.FC = () => {
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Gestion de l'équipe</CardTitle>
-                  <Button>
+                  <CardTitle className="text-gray-900 dark:text-white">Gestion de l'équipe</CardTitle>
+                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Inviter un membre
                   </Button>
@@ -783,11 +582,9 @@ const SettingsPage: React.FC = () => {
                       className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
                     >
                       <div className="flex items-center space-x-4">
-                        <img
-                          src={member.avatar || "/placeholder.svg"}
-                          alt={member.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {member.name.split(' ').map(n => n[0]).join('')}
+                        </div>
                         <div>
                           <h4 className="font-medium text-gray-900 dark:text-white">{member.name}</h4>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{member.email}</p>
@@ -834,50 +631,42 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 pt-16">
-          <div className="p-6">
-            {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Paramètres</h1>
-              <p className="text-gray-600 dark:text-gray-400">Gérez vos préférences et configurations</p>
-            </div>
-
-            <div className="flex gap-6">
-              {/* Sidebar */}
-              <div className="w-64 flex-shrink-0">
-                <Card className="dark:bg-gray-800 dark:border-gray-700">
-                  <CardContent className="p-4">
-                    <nav className="space-y-1">
-                      {tabs.map((tab) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => setActiveTab(tab.id)}
-                          className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
-                            activeTab === tab.id
-                              ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
-                              : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200"
-                          }`}
-                        >
-                          <tab.icon className="w-5 h-5" />
-                          <span className="font-medium">{tab.label}</span>
-                        </button>
-                      ))}
-                    </nav>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1">{renderTabContent()}</div>
-            </div>
-          </div>
-        </main>
+    <Layout>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Paramètres</h1>
+        <p className="text-gray-600 dark:text-gray-400">Gérez vos préférences et configurations</p>
       </div>
-    </div>
+
+      <div className="flex gap-6">
+        {/* Sidebar */}
+        <div className="w-64 flex-shrink-0">
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardContent className="p-4">
+              <nav className="space-y-1">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors ${
+                      activeTab === tab.id
+                        ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-200"
+                    }`}
+                  >
+                    <tab.icon className="w-5 h-5" />
+                    <span className="font-medium">{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1">{renderTabContent()}</div>
+      </div>
+    </Layout>
   )
 }
 

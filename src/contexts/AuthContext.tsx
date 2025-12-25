@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import  authService  from "../services/authService"
+import { createContext, useContext, useState, useEffect } from "react"
+import authService from "../services/authService"
 import type { User } from "../types/api"
 
 interface AuthContextType {
@@ -17,11 +17,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-interface AuthProviderProps {
-  children: ReactNode
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -31,23 +35,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initializeAuth = async () => {
     try {
-      if (authService.isAuthenticated()) {
+      // Check if token exists in localStorage
+      const token = authService.getToken()
+      if (token) {
+        // Check if we have stored user data
         const storedUser = authService.getCurrentUser()
         if (storedUser) {
+          // Set user immediately from localStorage to avoid flash
           setUser(storedUser)
-          // Optionnel: vérifier que le token est toujours valide
-          try {
-            const currentUser = await authService.getCurrentUser()
-            setUser(currentUser)
-            localStorage.setItem("user", JSON.stringify(currentUser))
-          } catch (error) {
-            console.error("Token invalide:", error)
-            await logout()
-          }
         }
+        
+        try {
+          // Try to get fresh user profile with the token
+          const currentUser = await authService.getProfile()
+          setUser(currentUser)
+        } catch (error) {
+          console.error("Token invalide ou expiré:", error)
+          // Clear invalid auth data
+          await authService.logout()
+          setUser(null)
+        }
+      } else {
+        // No token, user is not authenticated
+        setUser(null)
       }
     } catch (error) {
       console.error("Erreur initialisation auth:", error)
+      setUser(null)
     } finally {
       setIsLoading(false)
     }
@@ -55,37 +69,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string) => {
     try {
+      setIsLoading(true)
       const response = await authService.login({ username, password })
       setUser(response.user)
     } catch (error) {
+      console.error("Login error in context:", error)
       throw error
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const register = async (data: any) => {
     try {
+      setIsLoading(true)
       const response = await authService.register(data)
       setUser(response.user)
     } catch (error) {
+      console.error("Registration error in context:", error)
       throw error
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const logout = async () => {
     try {
+      setIsLoading(true)
       await authService.logout()
     } catch (error) {
-      console.error("Erreur logout:", error)
+      console.error("Logout error:", error)
     } finally {
       setUser(null)
+      setIsLoading(false)
     }
   }
 
   const refreshUser = async () => {
     try {
-      const currentUser = await authService.getCurrentUser()
+      if (!authService.getToken()) {
+        setUser(null)
+        return
+      }
+      
+      const currentUser = await authService.getProfile()
       setUser(currentUser)
-      localStorage.setItem("user", JSON.stringify(currentUser))
     } catch (error) {
       console.error("Erreur refresh user:", error)
       await logout()
@@ -103,12 +131,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
 }

@@ -7,6 +7,7 @@ import { useTheme } from "../contexts/ThemeContext"
 import { useToast } from "../contexts/ToastContext"
 import { Button } from "../components/ui/button"
 import { Card } from "../components/ui/card"
+import Layout from "../components/Layout/Layout"
 import {
   Send,
   Bot,
@@ -236,336 +237,326 @@ const AIAssistantPage: React.FC = () => {
   }
 
   return (
-    <div
-      className={`min-h-screen transition-colors duration-200 ${actualTheme === "dark" ? "dark bg-gray-900" : "bg-gray-50"}`}
-    >
-      
-      <div className="flex">
-        
-        
-          <div className="p-6">
-            <div className="max-w-7xl mx-auto">
-              {/* En-tête de la page */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-xl transition-colors duration-200">
-                      <Bot className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div>
-                      <h1 className="text-3xl font-bold text-gray-900 dark:text-white transition-colors duration-200">
-                        Assistant IA
-                      </h1>
-                      <p className="text-gray-600 dark:text-gray-400 mt-1 transition-colors duration-200">
-                        Votre assistant intelligent pour optimiser vos processus de recrutement
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Button
-                      variant="outline"
-                      onClick={exportConversation}
-                      className="flex items-center space-x-2 bg-transparent border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Exporter</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={clearConversation}
-                      className="flex items-center space-x-2 bg-transparent border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      <span>Nouveau</span>
-                    </Button>
-                  </div>
-                </div>
+    <Layout>
+      <div className="max-w-7xl mx-auto">
+        {/* En-tête de la page */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-xl">
+                <Bot className="w-8 h-8 text-purple-600 dark:text-purple-400" />
               </div>
-
-              {/* Statistiques rapides */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors duration-200">
-                        Messages aujourd'hui
-                      </p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2 transition-colors duration-200">
-                        24
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">+12% vs hier</p>
-                    </div>
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg transition-colors duration-200">
-                      <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors duration-200">
-                        CV analysés
-                      </p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2 transition-colors duration-200">
-                        12
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">+8% vs hier</p>
-                    </div>
-                    <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-lg transition-colors duration-200">
-                      <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors duration-200">
-                        Temps économisé
-                      </p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2 transition-colors duration-200">
-                        3.2h
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">Cette semaine</p>
-                    </div>
-                    <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg transition-colors duration-200">
-                      <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors duration-200">
-                        Satisfaction
-                      </p>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2 transition-colors duration-200">
-                        4.8/5
-                      </p>
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">Excellent</p>
-                    </div>
-                    <div className="p-3 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg transition-colors duration-200">
-                      <Star className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Panneau des actions rapides */}
-                <div className="lg:col-span-1">
-                  <Card className="p-6 h-fit bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center transition-colors duration-200">
-                        <Zap className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
-                        Actions rapides
-                      </h3>
-                    </div>
-
-                    {/* Filtres par catégorie */}
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      {categories.map((category) => (
-                        <Button
-                          key={category.id}
-                          variant={selectedCategory === category.id ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedCategory(category.id)}
-                          className="flex items-center space-x-1 text-xs transition-colors duration-200"
-                        >
-                          {category.icon}
-                          <span>{category.label}</span>
-                        </Button>
-                      ))}
-                    </div>
-
-                    {/* Liste des actions */}
-                    <div className="space-y-3">
-                      {filteredActions.map((action) => (
-                        <div
-                          key={action.id}
-                          onClick={() => handleQuickAction(action)}
-                          className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors duration-200"
-                        >
-                          <div className="flex items-start space-x-3">
-                            <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg transition-colors duration-200">
-                              {action.icon}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-gray-900 dark:text-white text-sm transition-colors duration-200">
-                                {action.title}
-                              </h4>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 transition-colors duration-200">
-                                {action.description}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Zone de chat principale */}
-                <div className="lg:col-span-3">
-                  <Card className="h-[700px] flex flex-col bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                    {/* En-tête du chat */}
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 transition-colors duration-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-full transition-colors duration-200">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          </div>
-                          <div>
-                            <h3 className="font-medium text-gray-900 dark:text-white transition-colors duration-200">
-                              Assistant IA TalentAI
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">
-                              En ligne • Répond généralement en quelques secondes
-                            </p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm" className="hover:bg-gray-100 dark:hover:bg-gray-700">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                      {messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
-                        >
-                          <div
-                            className={`flex items-start space-x-3 max-w-3xl group ${
-                              message.type === "user" ? "flex-row-reverse space-x-reverse" : ""
-                            }`}
-                          >
-                            <div
-                              className={`p-2 rounded-full transition-colors duration-200 ${
-                                message.type === "user" ? "bg-purple-600" : "bg-gray-200 dark:bg-gray-700"
-                              }`}
-                            >
-                              {message.type === "user" ? (
-                                <User className="w-4 h-4 text-white" />
-                              ) : (
-                                <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                              )}
-                            </div>
-                            <div className={`flex-1 ${message.type === "user" ? "text-right" : ""}`}>
-                              <div
-                                className={`p-4 rounded-2xl transition-colors duration-200 ${
-                                  message.type === "user"
-                                    ? "bg-purple-600 text-white"
-                                    : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
-                                }`}
-                              >
-                                <p className="text-sm leading-relaxed">{message.content}</p>
-                              </div>
-                              <div className="flex items-center justify-between mt-2">
-                                <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-200">
-                                  {message.timestamp.toLocaleTimeString("fr-FR", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </p>
-                                {message.type === "assistant" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => copyMessage(message.content)}
-                                    className="p-1 h-auto opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-600"
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                  </Button>
-                                )}
-                              </div>
-                              {/* Suggestions */}
-                              {message.suggestions && (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {message.suggestions.map((suggestion, index) => (
-                                    <Button
-                                      key={index}
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleSuggestionClick(suggestion)}
-                                      className="text-xs h-8 px-3 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
-                                    >
-                                      {suggestion}
-                                    </Button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* Indicateur de frappe */}
-                      {isLoading && (
-                        <div className="flex justify-start">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200">
-                              <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                            </div>
-                            <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl transition-colors duration-200">
-                              <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                <div
-                                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                  style={{ animationDelay: "0.1s" }}
-                                ></div>
-                                <div
-                                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                  style={{ animationDelay: "0.2s" }}
-                                ></div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Zone de saisie */}
-                    <div className="border-t border-gray-200 dark:border-gray-700 p-4 transition-colors duration-200">
-                      <div className="flex items-end space-x-3">
-                        <div className="flex-1">
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={inputMessage}
-                            onChange={(e) => setInputMessage(e.target.value)}
-                            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                            placeholder="Tapez votre message..."
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-colors duration-200"
-                            disabled={isLoading}
-                          />
-                        </div>
-                        <Button
-                          onClick={handleSendMessage}
-                          disabled={!inputMessage.trim() || isLoading}
-                          className="p-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 transition-colors duration-200"
-                        >
-                          <Send className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 px-1 transition-colors duration-200">
-                        Appuyez sur Entrée pour envoyer • L'IA peut faire des erreurs, vérifiez les informations
-                        importantes
-                      </p>
-                    </div>
-                  </Card>
-                </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  Assistant IA
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">
+                  Votre assistant intelligent pour optimiser vos processus de recrutement
+                </p>
               </div>
             </div>
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                onClick={exportConversation}
+                className="flex items-center space-x-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exporter</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={clearConversation}
+                className="flex items-center space-x-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Nouveau</span>
+              </Button>
+            </div>
           </div>
-        
+        </div>
+
+        {/* Statistiques rapides */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Messages aujourd'hui
+                </p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                  24
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">+12% vs hier</p>
+              </div>
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  CV analysés
+                </p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                  12
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">+8% vs hier</p>
+              </div>
+              <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Temps économisé
+                </p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                  3.2h
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">Cette semaine</p>
+              </div>
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Satisfaction
+                </p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                  4.8/5
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">Excellent</p>
+              </div>
+              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg">
+                <Star className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Panneau des actions rapides */}
+          <div className="lg:col-span-1">
+            <Card className="p-6 h-fit bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                  <Zap className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
+                  Actions rapides
+                </h3>
+              </div>
+
+              {/* Filtres par catégorie */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {categories.map((category) => (
+                  <Button
+                    key={category.id}
+                    variant={selectedCategory === category.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedCategory(category.id)}
+                    className="flex items-center space-x-1 text-xs"
+                  >
+                    {category.icon}
+                    <span>{category.label}</span>
+                  </Button>
+                ))}
+              </div>
+
+              {/* Liste des actions */}
+              <div className="space-y-3">
+                {filteredActions.map((action) => (
+                  <div
+                    key={action.id}
+                    onClick={() => handleQuickAction(action)}
+                    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                        {action.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 dark:text-white text-sm">
+                          {action.title}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {action.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* Zone de chat principale */}
+          <div className="lg:col-span-3">
+            <Card className="h-[700px] flex flex-col bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              {/* En-tête du chat */}
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-full">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">
+                        Assistant IA SeleKtia
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        En ligne • Répond généralement en quelques secondes
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`flex items-start space-x-3 max-w-3xl group ${
+                        message.type === "user" ? "flex-row-reverse space-x-reverse" : ""
+                      }`}
+                    >
+                      <div
+                        className={`p-2 rounded-full ${
+                          message.type === "user" ? "bg-purple-600" : "bg-gray-200 dark:bg-gray-700"
+                        }`}
+                      >
+                        {message.type === "user" ? (
+                          <User className="w-4 h-4 text-white" />
+                        ) : (
+                          <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                        )}
+                      </div>
+                      <div className={`flex-1 ${message.type === "user" ? "text-right" : ""}`}>
+                        <div
+                          className={`p-4 rounded-2xl ${
+                            message.type === "user"
+                              ? "bg-purple-600 text-white"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
+                          }`}
+                        >
+                          <p className="text-sm leading-relaxed">{message.content}</p>
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {message.timestamp.toLocaleTimeString("fr-FR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          {message.type === "assistant" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyMessage(message.content)}
+                              className="p-1 h-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                        {/* Suggestions */}
+                        {message.suggestions && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {message.suggestions.map((suggestion, index) => (
+                              <Button
+                                key={index}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSuggestionClick(suggestion)}
+                                className="text-xs h-8 px-3"
+                              >
+                                {suggestion}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Indicateur de frappe */}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-full bg-gray-200 dark:bg-gray-700">
+                        <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                      </div>
+                      <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl">
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div
+                            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "0.1s" }}
+                          ></div>
+                          <div
+                            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                            style={{ animationDelay: "0.2s" }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Zone de saisie */}
+              <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-end space-x-3">
+                  <div className="flex-1">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                      placeholder="Tapez votre message..."
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim() || isLoading}
+                    className="p-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:bg-gray-400"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 px-1">
+                  Appuyez sur Entrée pour envoyer • L'IA peut faire des erreurs, vérifiez les informations
+                  importantes
+                </p>
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
-    </div>
+    </Layout>
   )
 }
 

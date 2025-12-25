@@ -9,6 +9,7 @@ interface ThemeContextType {
   theme: Theme
   setTheme: (theme: Theme) => void
   actualTheme: "light" | "dark"
+  toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -75,7 +76,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }
 
+  const toggleTheme = () => {
+    const newTheme = actualTheme === "light" ? "dark" : "light"
+    handleSetTheme(newTheme)
+  }
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, actualTheme }}>{children}</ThemeContext.Provider>
+    <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, actualTheme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
   )
 }

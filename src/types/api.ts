@@ -41,6 +41,20 @@ export interface RegisterRequest {
   confirm_password: string
   accept_terms: boolean
 }
+export interface MatchingWeights {
+  technical_skills: number
+  soft_skills: number
+  experience: number
+  education: number
+}
+
+// Configuration de matching par défaut
+export const DEFAULT_MATCHING_WEIGHTS: MatchingWeights = {
+  technical_skills: 0.35,
+  soft_skills: 0.15,
+  experience: 0.30,
+  education: 0.20
+}
 
 // Types pour les offres d'emploi
 export interface JobOffer {
@@ -51,9 +65,6 @@ export interface JobOffer {
   benefits: string
   status: "draft" | "active" | "paused" | "closed"
   experience_level: "junior" | "middle" | "senior"
-  salary_min?: number
-  salary_max?: number
-  location: string
   remote_allowed: boolean
   contract_type: string
   company: Company
@@ -64,6 +75,13 @@ export interface JobOffer {
   ai_generated: boolean
   seo_optimized: boolean
   bias_checked: boolean
+  
+  // Nouveaux champs pour le matching personnalisé
+  matching_weights?: MatchingWeights
+  system_prompt?: string
+  effective_matching_weights?: MatchingWeights
+  effective_system_prompt?: string
+  has_custom_matching?: boolean
 }
 
 export interface JobOfferCreate {
@@ -71,14 +89,30 @@ export interface JobOfferCreate {
   description: string
   requirements: string
   benefits: string
-  status: 'draft' | 'active' | 'paused' | 'closed'
-  experience_level: 'junior' | 'middle' | 'senior'
-  salary_min: number | null
-  salary_max: number | null
-  location: string
+  status: "draft" | "active" | "paused" | "closed"
+  experience_level: "junior" | "middle" | "senior"
   remote_allowed: boolean
   contract_type: string
   deadline: string | null
+  
+  // Nouveaux champs optionnels
+  matching_weights?: MatchingWeights
+  system_prompt?: string
+}
+export interface JobMatchingConfig {
+  id: number
+  title: string
+  matching_weights?: MatchingWeights
+  system_prompt?: string
+  effective_weights: MatchingWeights
+  weights_customized: boolean
+  prompt_customized: boolean
+}
+export interface MatchingConfigResponse {
+  success: boolean
+  config: JobMatchingConfig
+  default_weights: MatchingWeights
+  message?: string
 }
 
 // Types pour les candidats
@@ -88,66 +122,118 @@ export interface Candidate {
   last_name: string
   email: string
   phone: string
-  gender?: "M" | "F"
-  birth_date?: string
+  gender: "M" | "F" | "N/A"
+  birth_date: string | null
   address: string
   city: string
   linkedin_url: string
-  cv_file?: string
+  cv_file: string | null
+  cv_file_path: string // NOUVEAU CHAMP
   cv_text: string
-  cv_parsed_data: any
-  skills_extracted: string[]
-  experience_years?: number
+  cv_parsed_data: Record<string, any>
+
+  technical_skills: string[]
+  soft_skills: string[]
+  skills_extracted?: Record<string, any>
+
+  experience_years: number | null
   education_level: string
   languages: string[]
   ai_summary: string
+  status: "new" | "pending_extraction" | "reviewed" | "interviewed" | "hired" | "rejected" // Nouveau statut
+  global_match_score: number | null
+  last_matching_date: string | null
+  
+  // Nouveaux champs pour tracking extraction
+  is_extracted: boolean
+  extraction_date: string | null
+  
   created_at: string
   updated_at: string
-  skills_display: string[]
+  full_name: string
+  current_position: string
+  skills_summary: {
+    technical_count: number
+    soft_count: number
+    top_technical: string[]
+  }
+  experience_summary: {
+    years: number
+    level: string
+  }
+  application_count: number
 }
 
-// Types pour les candidatures
-export interface Application {
+export interface PendingCandidate {
   id: number
-  job_offer: JobOffer
-  candidate: Candidate
-  status: "received" | "screening" | "interview" | "tests" | "final" | "accepted" | "rejected" | "withdrawn"
-  status_display: string
-  cover_letter: string
-  ai_match_score?: number
-  cultural_fit_score?: number
-  applied_at: string
-  last_updated: string
-  source: string
+  full_name: string
+  cv_file: string
+  cv_file_path: string
+  cv_file_url: string | null
+  status: "pending_extraction" | "processing" | "failed"
+  is_extracted: boolean
+  upload_date: string
+  created_at: string
 }
 
-// Types pour les entretiens
-export interface Interview {
-  id: number
-  application: Application
-  interview_type: "phone" | "video" | "in_person" | "ai_screening"
-  scheduled_at: string
-  duration_minutes: number
-  interviewer_name: string
-  questions: string[]
-  notes: string
-  ai_evaluation: any
-  completed_at?: string
-}
-
-// Types pour les réponses API
-export interface ApiResponse<T = any> {
-  success?: boolean
-  data?: T
-  error?: string
+// Nouveau type pour les réponses d'upload
+export interface UploadResponse {
+  success: boolean
   message?: string
+  candidate?: {
+    id: number
+    cv_file_path: string
+    cv_file_url: string | null
+    status: string
+    upload_date: string
+  }
+  error?: string
+}
+
+export interface CandidateNote {
+  id: number
+  content: string
+  note_type: "note" | "interview" | "call" | "email"
+  author: {
+    id: number
+    first_name: string
+    last_name: string
+    get_full_name: string
+  }
+  created_at: string
+}
+export interface TimelineEvent {
+  id: string
+  type: "application" | "review" | "interview" | "call" | "email" | "status_change"
+  title: string
+  description: string
+  date: string
+  author?: string
+}
+
+export interface JobMatch {
+  job_id: number
+  job_title: string
+  company_name: string
+  location: string
+  contract_type: string
+  salary_range: string
+  overall_score: number
+  recommendation: string
+  breakdown: Record<
+    string,
+    {
+      score: number
+      confidence: number
+    }
+  >
 }
 
 export interface PaginatedResponse<T> {
-  count: number
-  next?: string
-  previous?: string
   results: T[]
+  count: number
+  next: string | null // Changed from string | null
+  previous: string | null // Changed from string | null
 }
 
 // Types pour les filtres
@@ -164,9 +250,115 @@ export interface JobFilters {
 }
 
 export interface CandidateFilters {
-  city?: string
-  experience_years?: number
-  skills?: string
+  status?: string
+  location?: string
+  skills?: string[]
   search?: string
+  job?: string
   page?: number
+  page_size?: number
+  group?: string;
+  experience_level?: "junior" | "middle" | "senior" // Add this line
+  experience_min?: number
+  experience_max?: number
+  is_active?: boolean
+  is_favorite?: boolean
+}
+// Types pour les groupes
+export interface CandidateGroup {
+  id: number
+  nom: string
+  description: string
+  type_groupe: "competence" | "experience" | "projet" | "pipeline" | "performance" | "geographic" | "custom"
+  couleur: "blue" | "green" | "red" | "yellow" | "purple" | "orange" | "gray" | "teal"
+  ordre_affichage: number
+  is_active: boolean
+  is_public: boolean
+  candidats_count: number
+  skills_distribution?: {
+    technical: Record<string, number>
+    soft: Record<string, number>
+  }
+  experience_distribution?: {
+    min: number
+    max: number
+    avg: number
+    distribution: {
+      "0-2": number
+      "3-5": number
+      "6-10": number
+      "10+": number
+    }
+  }
+  created_by: {
+    id: number
+    first_name: string
+    last_name: string
+  }
+  created_at: string
+  updated_at: string
+  last_sync?: string
+}
+
+export interface CandidateGroupCreate {
+  nom: string
+  description?: string
+  type_groupe: CandidateGroup["type_groupe"]
+  couleur: CandidateGroup["couleur"]
+  ordre_affichage?: number
+  is_active?: boolean
+  is_public?: boolean
+}
+
+export interface CandidateGroupFilters {
+  search?: string
+  type_groupe?: string
+  is_active?: boolean
+  candidat_id?: number
+  ordering?: string
+  page?: number
+}
+
+export interface GroupAnalytics {
+  total: number
+  skills: {
+    technical: Record<string, number>
+    soft: Record<string, number>
+  }
+  experience: {
+    min: number
+    max: number
+    avg: number
+    distribution: Record<string, number>
+  }
+  status_distribution: Record<string, number>
+  applications_count: number
+  avg_match_score: number
+  last_updated: string
+  last_sync?: string
+}
+
+export interface BulkActionRequest {
+  action: "activate" | "deactivate" | "delete" | "sync_all"
+  groupe_ids: number[]
+}
+
+export interface BulkActionResponse {
+  success: boolean
+  action: string
+  processed: number
+  successful: number
+  results: string[]
+}
+export interface BulkUploadResult {
+  success: boolean;
+  uploaded_count: number;
+  error_count: number;
+  results: Array<{
+    candidate_id: number;
+    filename: string;
+    cv_file_url: string;
+    status: string;
+  }>;
+  errors: string[];
 }

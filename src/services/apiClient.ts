@@ -1,72 +1,159 @@
-import axios from 'axios'
-import type { AxiosInstance, AxiosResponse, AxiosError } from 'axios'
-import { API_BASE_URL } from '../config/api'
+// Fixed apiClient.ts
+import { API_BASE_URL } from "../config/api"
 
-// Fonction pour récupérer le token CSRF depuis les cookies
-const getCSRFToken = (): string | null => {
-  const name = 'csrftoken'
-  let cookieValue: string | null = null
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';')
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim()
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1))
-        break
-      }
-    }
-  }
-  return cookieValue
+class ApiClient {
+private readonly TOKEN_KEY = "auth_token"
+
+// Get token from localStorage
+private getToken(): string | null {
+if (typeof window === "undefined") return null
+return localStorage.getItem(this.TOKEN_KEY)
 }
 
-// Créer l'instance Axios
-const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true, // Important pour les cookies CSRF
-})
+// Get default headers with authentication (FIXED: Don't include Content-Type for FormData)
+private getHeaders(includeAuth = true, isFormData = false): HeadersInit {
+const headers: HeadersInit = {}
 
-// Intercepteur de requête
-apiClient.interceptors.request.use(
-  (config) => {
-    // Ajouter le token d'authentification
-    const token = localStorage.getItem('authToken')
-    if (token) {
-      config.headers.Authorization = `Token ${token}`
-    }
+// CRITICAL FIX: Only set Content-Type for JSON, not for FormData
+if (!isFormData) {
+headers["Content-Type"] = "application/json"
+}
 
-    // Ajouter le token CSRF pour les requêtes POST, PUT, PATCH, DELETE
-    if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
-      const csrfToken = getCSRFToken()
-      if (csrfToken) {
-        config.headers['X-CSRFToken'] = csrfToken
-      }
-    }
+if (includeAuth) {
+const token = this.getToken()
+if (token) {
+headers["Authorization"] = `Token ${token}`
+}
+}
 
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
+return headers
+}
+
+// Generic request method (FIXED: Handle FormData properly)
+private async request<T>(endpoint: string, options: RequestInit = {}, includeAuth = true): Promise<T> {
+const url = `${API_BASE_URL}${endpoint}`
+
+// CRITICAL FIX: Detect if body is FormData
+const isFormData = options.body instanceof FormData
+
+const config: RequestInit = {
+...options,
+headers: {
+...this.getHeaders(includeAuth, isFormData),
+...options.headers,
+},
+}
+
+try {
+const response = await fetch(url, config)
+
+// Handle authentication errors
+if (response.status === 401) {
+if (typeof window !== "undefined") {
+localStorage.removeItem(this.TOKEN_KEY)
+localStorage.removeItem("user")
+
+if (!window.location.pathname.includes("/login")) {
+window.location.href = "/login"
+}
+}
+throw new Error("Token expired or invalid")
+}
+
+// Handle other HTTP errors
+if (!response.ok) {
+const errorData = await response.json().catch(() => null)
+throw new Error(errorData?.message || errorData?.error || `HTTP ${response.status}`)
+}
+
+// Handle empty responses (like 204 No Content)
+if (response.status === 204) {
+return {} as T
+}
+
+const data = await response.json()
+return data
+} catch (error) {
+console.error(`API Error for ${endpoint}:`, error)
+throw error
+}
+}
+
+// GET request
+async get<T>(endpoint: string, includeAuth = true): Promise<T> {
+return this.request<T>(endpoint, { method: "GET" }, includeAuth)
+}
+
+// POST request (FIXED: Handle both JSON and FormData)
+async post<T>(endpoint: string, data?: any, includeAuth = true): Promise<T> {
+let body: any
+
+if (data instanceof FormData) {
+// FormData - pass as-is
+body = data
+} else if (data !== undefined) {
+// JSON - stringify
+body = JSON.stringify(data)
+}
+
+return this.request<T>(
+endpoint,
+{
+method: "POST",
+body,
+},
+includeAuth,
 )
+}
 
-// Intercepteur de réponse
-apiClient.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response
-  },
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Token expiré ou invalide
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
+// PUT request
+async put<T>(endpoint: string, data?: any, includeAuth = true): Promise<T> {
+let body: any
+
+if (data instanceof FormData) {
+body = data
+} else if (data !== undefined) {
+body = JSON.stringify(data)
+}
+
+return this.request<T>(
+endpoint,
+{
+method: "PUT",
+body,
+},
+includeAuth,
 )
+}
 
+// PATCH request
+async patch<T>(endpoint: string, data?: any, includeAuth = true): Promise<T> {
+let body: any
+
+if (data instanceof FormData) {
+body = data
+} else if (data !== undefined) {
+body = JSON.stringify(data)
+}
+
+return this.request<T>(
+endpoint,
+{
+method: "PATCH",
+body,
+},
+includeAuth,
+)
+}
+
+// DELETE request
+async delete<T>(endpoint: string, includeAuth = true): Promise<T> {
+return this.request<T>(endpoint, { method: "DELETE" }, includeAuth)
+}
+
+// REMOVED: uploadFile method is now redundant since post() handles FormData
+}
+
+const apiClient = new ApiClient()
+export { apiClient }
 export default apiClient

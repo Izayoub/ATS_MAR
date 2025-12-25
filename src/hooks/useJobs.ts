@@ -22,6 +22,7 @@ export const useJobs = (filters?: JobFilters) => {
     try {
       setLoading(true)
       setError(null)
+      const params = { page_size: 10, ...filters }
       const response: PaginatedResponse<JobOffer> = await jobService.getJobs(newFilters || filters)
       setJobs(response.results)
       setPagination({

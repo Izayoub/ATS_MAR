@@ -124,13 +124,11 @@ const HomePage: React.FC = () => {
               </div>
 
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white">
-                TalentAI
-                <span className="text-red-500 block">Maroc</span>
+                Selektia       
               </h1>
 
-              <p className="text-xl text-gray-600 dark:text-gray-300 leading-relaxed">
-                Le premier ATS marocain dopé à l'IA. Recrutez plus intelligemment avec notre plateforme multilingue
-                adaptée au marché local.
+              <p className="text-2xl text-gray-600 dark:text-gray-300 leading-relaxed">
+                Trouver le talent idéal n’a jamais été aussi simple
               </p>
 
               {/* Feature Pills */}
@@ -322,7 +320,7 @@ const HomePage: React.FC = () => {
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-white mb-6">Prêt à transformer votre recrutement ?</h2>
           <p className="text-xl text-purple-100 mb-8">
-            Rejoignez les 500+ entreprises marocaines qui font confiance à TalentAI
+            Rejoignez les 500+ entreprises marocaines qui font confiance à ATS
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

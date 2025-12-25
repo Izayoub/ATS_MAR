@@ -1,137 +1,151 @@
-import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { useAuthNavigation } from '../hooks/useAuthNavigation'
-import { useToast } from '../contexts/ToastContext'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
+"use client"
 
-const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+import type React from "react"
+
+import { useState } from "react"
+import { useNavigate, Link } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+import { Button } from "../components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
+import { Input } from "../components/ui/input"
+import { Label } from "../components/ui/label"
+import { Alert, AlertDescription } from "../components/ui/alert"
+import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react"
+
+export default function LoginPage() {
+  const navigate = useNavigate()
+  const { login, isLoading } = useAuth()
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+  })
   const [showPassword, setShowPassword] = useState(false)
-  const { login, isLoading, isAuthenticated } = useAuth()
-  const { redirectAfterLogin } = useAuthNavigation()
-  const { addToast } = useToast()
-
-  // Rediriger si déjà connecté
-  useEffect(() => {
-    if (isAuthenticated) {
-      redirectAfterLogin()
-    }
-  }, [isAuthenticated, redirectAfterLogin])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!email || !password) {
-      addToast('Veuillez remplir tous les champs', 'error')
-      return
-    }
+    setError(null)
+    setLoading(true)
 
     try {
-      await login(email, password)
-      addToast('Connexion réussie !', 'success')
-      // La redirection sera gérée par l'useEffect ci-dessus
-    } catch (error) {
-      addToast('Email ou mot de passe incorrect', 'error')
+      await login(formData.username, formData.password)
+      navigate("/dashboard")
+    } catch (err: any) {
+      setError(err.message || "Erreur de connexion")
+    } finally {
+      setLoading(false)
     }
   }
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">R</span>
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold text-center text-gray-900 dark:text-white">
-            Connexion
-          </CardTitle>
-          <p className="text-center text-gray-600 dark:text-gray-400">
-            Accédez à votre espace de recrutement
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="votre@email.com"
-                  disabled={isLoading}
-                />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Connexion</h2>
+          <p className="mt-2 text-sm text-gray-600">Connectez-vous à votre compte pour accéder au système ATS</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-center flex items-center justify-center gap-2">
+              <LogIn className="h-5 w-5" />
+              Se connecter
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="username">Nom d'utilisateur ou Email</Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    value={formData.username}
+                    onChange={handleChange}
+                    placeholder="Entrez votre nom d'utilisateur ou email"
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="password">Mot de passe</Label>
+                  <div className="relative mt-1">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="Entrez votre mot de passe"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="Votre mot de passe"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  disabled={isLoading}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+              <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700">
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Connexion...
+                  </div>
+                ) : (
+                  "Se connecter"
+                )}
+              </Button>
+
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  Pas encore de compte ?{" "}
+                  <Link to="/register" className="text-blue-600 hover:text-blue-500 font-medium">
+                    S'inscrire
+                  </Link>
+                </p>
               </div>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              {isLoading ? 'Connexion...' : 'Se connecter'}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Pas encore de compte ?{' '}
-              <Link 
-                to="/register" 
-                className="text-purple-600 hover:text-purple-700 font-medium"
-              >
-                S'inscrire
-              </Link>
-            </p>
-          </div>
-
-          <div className="mt-4 text-center">
-            <Link 
-              to="/" 
-              className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              ← Retour à l'accueil
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
-
-export default LoginPage
